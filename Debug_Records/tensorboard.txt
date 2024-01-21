@@ -1,0 +1,38 @@
+槽点太多了。。。
+
+首先，只有一个tensorboard，就是conda install tensorboard的tensorboard。
+无论
+lightning.pytorch.loggers.TensorBoardLogger
+还是
+torch.utils.tensorboard
+都是tensorboard的接口，但是他们俩不通用，tensorboard也只能加载一个地址
+
+所以现在想到的办法是用lightning的tensorboard：
+
+from lightning.pytorch.loggers import TensorBoardLogger
+log_dir = os.path.join(data_dir, "logs")
+tensorboard_logger = TensorBoardLogger(log_dir)
+
+class Net(LightningModule):
+    def __init__(self):
+        super().__init__()
+        self.tb_logger = tensorboard_logger.experiment
+
+    def train_step(self):
+        self.log("loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.tb_logger.add_scalar("loss", loss, self.global_step)
+
+trainer = lightning.Trainer(
+...
+logger=tensorboard_logger,
+...
+)
+
+trainer.fit(net)
+
+
+这样的话 self.log 和 self.tb_logger 调用的都是 lightning.pytorch.loggers.TensorBoardLogger
+应该会存到同一个event文件里，都能够在tensorboard里看到
+
+
+

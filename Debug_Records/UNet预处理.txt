@@ -1,0 +1,23 @@
+预处理流程：
+对train split：
+LoadImaged : 加载该key对应的value图像
+EnsureChannelFirst : 确保4Dtensor的Channel维在第一位，dim=0，这样才能找到channel
+Orientation : 对齐tensor的方向
+spacing : 统一spacing
+ScaleIntensityRange : 裁剪灰度值
+CropForeground : 用bounding box裁3D图像
+                   注意它的参数margin，是在函数generate_spatial_bounding_box里用到的，
+                   所以margin说的就是边框的大小/尺寸/宽度，而非边框的值
+                   margin只是扩大bbox的选中范围，不会改变image/label图像中voxel的值
+
+RandCropByPosNegLabel : 按照pos/neg的比例选取foreground或background上的voxel作为中心，
+                        生成等大小的patch
+
+对validation split：
+LoadImaged
+EnsureChannelFirst
+Orientation
+ScaleIntensityRange
+CropForeground
+那这样的话，经过val_compose得到的图像不就不一样大了吗？
+

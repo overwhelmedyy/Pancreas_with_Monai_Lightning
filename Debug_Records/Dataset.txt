@@ -1,0 +1,40 @@
+self.train_ds = CacheDataset(
+    data=train_files,
+    transform=train_transforms,
+    cache_rate=0.5,
+    num_workers=4,
+    runtime_cache="threads"
+)
+在笔记本上用CacheDataset如上，训练时不会把所有example都cache到memory
+但是在epoch 0开始之前就会黑屏退出pycharm，浏览器显示内存不足打不开网页
+
+
+self.train_ds = CacheDataset(
+    data=train_files,
+    transform=train_transforms,
+    cache_rate=1,
+    num_workers=4
+)
+在笔记本上用CacheDataset如上，训练时先把所有example都cache到memory，花大概一两分钟
+刚开始可以正常训练，可以正常训练epoch 0并得到结果
+但在训练epoch 1开始之前就会黑屏退出pycharm
+
+找到了Monai教程中对Dataset的讨论：
+https://github.com/Project-MONAI/tutorials/blob/main/acceleration/dataset_type_performance.ipynb
+
+尝试使用PersistentDataset：
+self.val_ds = PersistentDataset(
+    data=val_files,
+    transform=val_transforms,
+    cache_dir=persistent_cache,
+)
+改代码后运行了一次，还没完成sanity check就卡退pycharm了
+重启电脑后再次运行：
+改代码的同时还在cmd里运行了两行for开头的代码，可以在知乎上找到
+此外还在训练到epoch 1时拔掉了扩展屏幕的HDMI线，Run窗口出现了短暂小范围黑屏，但没有退出pycharm
+能够正常训练和验证，目前训练完了epoch3
+所以究竟是哪一步解决了问题？
+重启？ 改代码？ 拔HDMI线？ cmd窗口指令？
+
+
+程序跑了大概五个小时，训练了100个epoch后正常结束，但是参数有问题，没有训练起来，Dice metric连0.1都没有

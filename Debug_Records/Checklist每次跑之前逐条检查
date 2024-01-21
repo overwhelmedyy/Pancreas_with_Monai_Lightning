@@ -1,0 +1,42 @@
+1.task_name和network_name是否正确
+
+2.目录结构：
+    --MONAI_DATA_DIRECTORY
+        --task_name
+            --数据集
+            --persistent_cache
+
+3.tensorboard配置：从头到尾只实例化一个TensorBoardLogger，所有的event文件都在./runs里
+    --./runs
+        --Task01_pancreas
+        --Task09_spleen
+            --UNet
+            --UNet3D
+                --version_0
+                --version_1
+                ...
+
+4. __init__部分:输出通道和几分类任务对应
+                网络够不够深？
+                预处理过程，数据增强？
+                注意spatial_size
+
+5.在dataloader里设训练和validation的batch_size
+
+6.tensorboard的log，要log那些值？
+    train_loss, val_loss, val_dice
+    def training_step
+        self.log("train_loss", loss.item(), prog_bar=True, logger=True, on_epoch=True)
+
+    def on_validation_epoch_end
+         tensorboard_logs = {
+            "val_dice": mean_val_dice,
+            "val_loss": mean_val_loss,
+        }
+        self.log_dict(tensorboard_logs, logger=True)
+
+
+
+
+7.learning_rate怎么设？
+    用什么样的lr_scheduler？ stepLR等等
