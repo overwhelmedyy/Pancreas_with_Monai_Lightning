@@ -1,0 +1,14 @@
+bug1:
+    RuntimeError: stack expects each tensor to be equal size, but got [3, 224, 224] at entry 0 and [3, 224, 336] at...
+    大致就是有tensor的entry尺寸不一样大。
+
+    可以用allocate_fn=pad_list_data_collate解决，原理就是把它们pad到和最大的tensor一样大。但是要记得对train和val都设置。
+
+bug2：
+    dataloader终止，某个pid编号的内存进程报错。可以看到这个pid对应的是一个python进程，应该是爆内存了
+
+所以要注意程序的逻辑：
+    用PersistentDataset,batch_size=2 ---->需要把两个img stack到一起形成batch dimension---->需要让这两个img的tensor尺寸大小相同
+    ---->需要padding到最大尺寸---->设置collate_fn=pad_list_data_collate
+
+    再次强调！！一定记得要对train和val的dataloader都做，不要忘掉val！

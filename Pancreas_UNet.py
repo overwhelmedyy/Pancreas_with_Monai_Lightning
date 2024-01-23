@@ -3,9 +3,10 @@ import os
 import random
 
 import lightning
+import numpy as np
 import torch
 from lightning.pytorch.loggers import TensorBoardLogger
-from monai.data import list_data_collate, decollate_batch, DataLoader, PersistentDataset
+from monai.data import pad_list_data_collate, list_data_collate, decollate_batch, DataLoader, PersistentDataset,Dataset, CacheDataset
 from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
@@ -21,7 +22,7 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     ScaleIntensityRanged,
     Spacingd,
-    EnsureType
+    EnsureType, RandAffined
 )
 from monai.utils import set_determinism
 
@@ -33,6 +34,7 @@ data_dir = os.path.join(directory, task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
 tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
+troubleshooting_path = os.path.join(data_dir,"troubleshooting")
 
 set_determinism(seed=0)
 
@@ -63,8 +65,6 @@ class Net(lightning.LightningModule):
         self.best_val_epoch = 0
         self.validation_step_outputs = []
         self.tb_logger = tensorboard_logger.experiment
-        # log1:画出网络图
-        self.tb_logger.add_graph(self._model, torch.rand(1, 1, 96, 96, 96), verbose=True)
 
     def forward(self, x):
         return self._model(x)
@@ -72,7 +72,7 @@ class Net(lightning.LightningModule):
     def prepare_data(self):
         # set up the correct data path
         train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
-        train_labels = sorted(glob.glob(os.path.join(data_dir, "sliced_mono_label_2", "*.nii.gz")))
+        train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
         data_dicts = [
             {"image": image_name, "label": label_name} for image_name, label_name in zip(train_images, train_labels)
         ]  # 注意到data_dicts是一个数组
@@ -118,14 +118,14 @@ class Net(lightning.LightningModule):
                     image_key="image",
                     image_threshold=0,
                 ),
-                # user can also add other random transforms
-                #                 RandAffined(
-                #                     keys=['image', 'label'],
-                #                     mode=('bilinear', 'nearest'),
-                #                     prob=1.0,
-                #                     spatial_size=(96, 96, 96),
-                #                     rotate_range=(0, 0, np.pi/15),
-                #                     scale_range=(0.1, 0.1, 0.1)),
+
+                RandAffined(
+                    keys=['image', 'label'],
+                    mode=('bilinear', 'nearest'),
+                    prob=1.0,
+                    spatial_size=(96, 96, 96),
+                    rotate_range=(0, 0, np.pi/15),
+                    scale_range=(0.1, 0.1, 0.1)),
             ]
         )
         val_transforms = Compose(
@@ -163,10 +163,11 @@ class Net(lightning.LightningModule):
             cache_dir=persistent_cache,
         )
 
-    #         self.train_ds = monai.data.Dataset(
-    #             data=train_files, transform=train_transforms)
-    #         self.val_ds = monai.data.Dataset(
-    #             data=val_files, transform=val_transforms)
+
+#         self.train_ds = monai.data.Dataset(
+#             data=train_files, transform=train_transforms)
+#         self.val_ds = Dataset(
+#             data=val_files, transform=val_transforms)
 
     def train_dataloader(self):
         train_loader = DataLoader(
@@ -175,21 +176,23 @@ class Net(lightning.LightningModule):
             shuffle=True,
             num_workers=4,
             persistent_workers=True,
-            collate_fn=list_data_collate,  # 把每个batch的list of data合并到一个list中
+            collate_fn=pad_list_data_collate
+# 把每个batch的list of data合并到一个list中
         )
         return train_loader
 
     def val_dataloader(self):
         val_loader = DataLoader(
             self.val_ds,
-            batch_size=1,
+            batch_size=4,
             num_workers=4,
-            persistent_workers=True
+            persistent_workers=True,
+            collate_fn=pad_list_data_collate
         )
         return val_loader
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self._model.parameters(), 8e-4)
+        optimizer = torch.optim.Adam(self._model.parameters(), 1e-3)
         return optimizer
 
     def training_step(self, batch, batch_idx):
@@ -216,6 +219,17 @@ class Net(lightning.LightningModule):
         self.dice_metric(y_pred=outputs, y=labels)
         d = {"val_loss": loss, "val_number": len(outputs)}
         self.validation_step_outputs.append(d)
+
+        if self.dice_metric == 0:
+            # Convert tensors to NumPy arrays
+            outputs_list = [tensor.detach().cpu().numpy() for tensor in outputs]
+            labels_list = [tensor.detach().cpu().numpy() for tensor in labels]
+
+            # Save lists of NumPy arrays
+            np.save(os.path.join(troubleshooting_path,f"outputs_{self.global_step}.npy"), outputs_list)
+            np.save(os.path.join(troubleshooting_path,f"labels_{self.global_step}.npy"), labels_list)
+
+
         return d
 
     def on_validation_epoch_end(self):
@@ -224,7 +238,7 @@ class Net(lightning.LightningModule):
             val_loss += output["val_loss"].sum().item()
             num_items += output["val_number"]
         mean_val_dice = self.dice_metric.aggregate().item()
-        self.dice_metric.reset()
+        self. dice_metric.reset()
         mean_val_loss = torch.tensor(val_loss / num_items)
         tensorboard_logs = {
             "val_dice": mean_val_dice,
@@ -241,16 +255,16 @@ class Net(lightning.LightningModule):
         )
         self.validation_step_outputs.clear()
         self.log_dict(tensorboard_logs, logger=True)
-
         return {"log": tensorboard_logs}
 
-
 if __name__ == "__main__":
+    torch.set_float32_matmul_precision("medium")
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
     net = Net()
 
     trainer = lightning.Trainer(
         devices="auto",
-        max_epochs=1000,
+        max_epochs=200,
         logger=tensorboard_logger,
         log_every_n_steps=50,
         enable_checkpointing=True,

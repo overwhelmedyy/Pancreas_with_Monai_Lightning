@@ -70,7 +70,7 @@ class Net(lightning.LightningModule):
     def prepare_data(self):
         # set up the correct data path
         train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
-        train_labels = sorted(glob.glob(os.path.join(data_dir, "sliced_mono_label_2", "*.nii.gz")))
+        train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
         data_dicts = [
             {"image": image_name, "label": label_name} for image_name, label_name in zip(train_images, train_labels)
         ]  # 注意到data_dicts是一个数组

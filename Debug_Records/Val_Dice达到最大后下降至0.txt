@@ -1,0 +1,19 @@
+version_17:
+
+Validation DataLoader 0: 100%|██████████| 34/34 [01:08<00:00,  0.50it/s]
+current epoch: 314 current mean dice: 0.0000
+best mean dice: 0.6675 at epoch: 79
+
+在terminal输入以下可以看到val——dice的变化图像，可以看到在0和0.5~0.6之间来回波动，所以初步假设是学习率太大
+主要是因为 1）最开始是可以正常计算Dice Metric的
+         2）Dice上升的非常快，怀疑可能是learning rate过大
+         3）DiceMetric的参数我感觉没有问题
+            include_background：计算Dice要不要对background也计算
+            aggregate：假设dataset一共有100个example，batch_size=10,每训练1个epoch会得到10个Metric
+                        把这10个Metric相加，就叫aggregate
+            reduction：求和取平均，把10个Metric变成1个Metric，就是reduction
+减小learning rate再次实验
+
+version_18:
+先试一下learning——rate=1e-3，预期会出现同样的Metric=0的情况.注意learning_rate=8e
+
