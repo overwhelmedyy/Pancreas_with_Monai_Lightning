@@ -36,7 +36,7 @@ tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 troubleshooting_path = os.path.join(data_dir,"troubleshooting")
 
-set_determinism(seed=0)
+set_determinism(seed=10 )
 
 tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
