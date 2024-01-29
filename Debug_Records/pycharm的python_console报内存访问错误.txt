@@ -1,0 +1,9 @@
+在调用torch.load()的时候，报错:RunTimeError:Unrecognized CachingAllocator option: 1
+                       或者直接卡退python: Process finished with exit code -1073741819 (0xC0000005)
+
+解决办法: a = torch.load(r"runs/Task01_pancreas/AttentionUNet/version_5/checkpoints/epoch=24-step=850.ckpt",
+                        map_location=torch.device('cpu'))
+
+                        显式用map_location=torch.device('cpu'),
+                        # Load all tensors onto the CPU
+                          >>> torch.load('tensors.pt', map_location=torch.device('cpu'))

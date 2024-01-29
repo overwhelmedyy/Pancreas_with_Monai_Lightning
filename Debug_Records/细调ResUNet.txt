@@ -1,0 +1,9 @@
+首先读ResUNet的那篇论文：
+3.1 ImageProcessing：
+    DA:random selection of transpose,filp,rotation,shift
+    purpose is to prevent network from fixating features in specific regions
+
+    in this paper the only way taken to prevent overfitting is DA,dropout is considered no improvement
+
+3.2 segmentation Network architecture
+

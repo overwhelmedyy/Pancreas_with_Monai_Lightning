@@ -23,10 +23,10 @@ class Net(LightningModule):
         self.tb_logger.add_scalar("loss", loss, self.global_step)
 
 trainer = lightning.Trainer(
-...
-logger=tensorboard_logger,
-...
-)
+                            ...
+                            logger=tensorboard_logger,
+                            ...
+                            )
 
 trainer.fit(net)
 

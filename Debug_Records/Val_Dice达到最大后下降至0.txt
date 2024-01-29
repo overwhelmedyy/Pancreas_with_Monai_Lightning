@@ -22,5 +22,5 @@ version_18:
 保持Net(LightningModule)不变，将cp99中的‘state_dict'替换为cp889中的’state_dict',加载cp99训练，val_dice仍然为0
                             替换optimizer中的‘state’，加载cp99训练，val_dice仍然为0
 
-set_determinism(seed=10) 将随机种子从0换到10，得到version_29，训练过程中val_dice不为0
+set_determinism(seed=10) 将随机种子从0换到10，得到version_29，训练过程中val_dice 还 是 0！
 

@@ -1,7 +1,6 @@
 import glob
 import os
 import random
-
 import lightning
 import numpy as np
 import torch
@@ -22,7 +21,7 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     ScaleIntensityRanged,
     Spacingd,
-    EnsureType, RandAffined
+    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd
 )
 from monai.utils import set_determinism
 
@@ -36,16 +35,22 @@ tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 troubleshooting_path = os.path.join(data_dir,"troubleshooting")
 
-set_determinism(seed=10 )
+set_determinism(seed=10)
 
 tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
-
+# 台式机显存跑满 batch_size = 8 134//8=17， log_every_n_steps=8,
+train_batch_size = 4
+val_batch_size = 4
+learning_rate = 1e-4
 class Net(lightning.LightningModule):
-    def __init__(self):
+    def __init__(self, learning_rate, tr_bs, val_bs):
         super().__init__()
         self.val_ds = None
         self.train_ds = None
+        self.learning_rate = learning_rate
+        self.tr_bs = tr_bs
+        self.val_bs = val_bs
         self._model = UNet(
             spatial_dims=3,
             in_channels=1,
@@ -53,7 +58,7 @@ class Net(lightning.LightningModule):
             channels=(16, 32, 64, 128, 256),
             strides=(2, 2, 2, 2),
             num_res_units=2,
-            norm=Norm.BATCH,
+            norm=("group", {"num_groups": 4}),
         )
 
         self.loss_function = DiceLoss(to_onehot_y=True, softmax=True)
@@ -97,8 +102,8 @@ class Net(lightning.LightningModule):
                 ),
                 ScaleIntensityRanged(
                     keys=["image"],
-                    a_min=-200,
-                    a_max=200,
+                    a_min=-1024,
+                    a_max=2976,
                     b_min=0.0,
                     b_max=1.0,
                     clip=True,
@@ -126,6 +131,28 @@ class Net(lightning.LightningModule):
                     spatial_size=(96, 96, 96),
                     rotate_range=(0, 0, np.pi/15),
                     scale_range=(0.1, 0.1, 0.1)),
+
+                RandRotated(
+                    keys=['image', 'label'],
+                    range_x=np.pi / 4,
+                    range_y=np.pi / 4,
+                    range_z=np.pi / 4,
+                    prob=0.4,
+                    keep_size=True
+                ),
+                RandFlipd(
+                    keys=['image', 'label'],
+                    prob=0.5
+                ),
+                Rand3DElasticd(
+                    keys=['image', 'label'],
+                    sigma_range=(5, 8),
+                    magnitude_range=(100, 200),
+                    prob=0.5,
+                    rotate_range=(0, 0, np.pi / 15),
+                    scale_range=(0.2, 0.2, 0.2),
+                    spatial_size=(96, 96, 96),
+                    mode=('bilinear', 'nearest'))
             ]
         )
         val_transforms = Compose(
@@ -141,8 +168,8 @@ class Net(lightning.LightningModule):
                 ),
                 ScaleIntensityRanged(
                     keys=["image"],
-                    a_min=-200,
-                    a_max=200,
+                    a_min=-1024,
+                    a_max=2976,
                     b_min=0.0,
                     b_max=1.0,
                     clip=True,
@@ -172,7 +199,7 @@ class Net(lightning.LightningModule):
     def train_dataloader(self):
         train_loader = DataLoader(
             self.train_ds,
-            batch_size=2,
+            batch_size=self.tr_bs,
             shuffle=True,
             num_workers=4,
             persistent_workers=True,
@@ -184,7 +211,7 @@ class Net(lightning.LightningModule):
     def val_dataloader(self):
         val_loader = DataLoader(
             self.val_ds,
-            batch_size=4,
+            batch_size=self.val_ds,
             num_workers=4,
             persistent_workers=True,
             collate_fn=pad_list_data_collate
@@ -192,7 +219,7 @@ class Net(lightning.LightningModule):
         return val_loader
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self._model.parameters(), 1e-3)
+        optimizer = torch.optim.Adam(self._model.parameters(), self.learning_rate)
         return optimizer
 
     def training_step(self, batch, batch_idx):
@@ -260,18 +287,20 @@ class Net(lightning.LightningModule):
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("medium")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-    net = Net()
+    net = Net(learning_rate=learning_rate)
 
     trainer = lightning.Trainer(
         devices="auto",
         max_epochs=200,
         logger=tensorboard_logger,
-        log_every_n_steps=50,
+        log_every_n_steps=16,
         enable_checkpointing=True,
         deterministic=True,
         check_val_every_n_epoch=5,
         num_sanity_val_steps=None
     )
+
+    # module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_30/checkpoints/epoch=144-step=2465.ckpt",learning_rate=learning_rate)
 
     trainer.fit(net)
     print(f"train completed, best_metric: {net.best_val_dice:.4f} " f"at epoch {net.best_val_epoch}")

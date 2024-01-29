@@ -37,16 +37,17 @@ tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 troubleshooting_path = os.path.join(data_dir,"troubleshooting")
 
-set_determinism(seed=0)
+set_determinism(seed=4207)
 
 tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
-train_batch_size = 2
-val_batch_size = 2
-learning_rate = 2e-4
+train_batch_size = 4
+val_batch_size = 4
+learning_rate = 4e-4
 class Net(lightning.LightningModule):
-    def __init__(self):
+    def __init__(self,learning_rate):
         super().__init__()
+        self.learning_rate = learning_rate
         self.val_ds = None
         self.train_ds = None
         self._model = AttentionUnet(
@@ -55,7 +56,6 @@ class Net(lightning.LightningModule):
             out_channels=2,
             channels=(16, 32, 64, 128, 256),
             strides=(2, 2, 2, 2)
-
         )
 
         self.loss_function = DiceLoss(to_onehot_y=True, softmax=True)
@@ -99,8 +99,8 @@ class Net(lightning.LightningModule):
                 ),
                 ScaleIntensityRanged(
                     keys=["image"],
-                    a_min=-200,
-                    a_max=200,
+                    a_min=-1024,
+                    a_max=2976,
                     b_min=0.0,
                     b_max=1.0,
                     clip=True,
@@ -165,8 +165,8 @@ class Net(lightning.LightningModule):
                 ),
                 ScaleIntensityRanged(
                     keys=["image"],
-                    a_min=-200,
-                    a_max=200,
+                    a_min=-1024,
+                    a_max=2976,
                     b_min=0.0,
                     b_max=1.0,
                     clip=True,
@@ -201,7 +201,6 @@ class Net(lightning.LightningModule):
             num_workers=4,
             persistent_workers=True,
             collate_fn=pad_list_data_collate
-# 把每个batch的list of data合并到一个list中
         )
         return train_loader
 
@@ -216,7 +215,7 @@ class Net(lightning.LightningModule):
         return val_loader
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self._model.parameters(), learning_rate)
+        optimizer = torch.optim.Adam(self._model.parameters(), self.learning_rate)
         return optimizer
 
     def training_step(self, batch, batch_idx):
@@ -273,7 +272,7 @@ class Net(lightning.LightningModule):
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("medium")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-    net = Net()
+    net = Net(learning_rate=9e-5)
 
     trainer = lightning.Trainer(
         devices="auto",
@@ -286,5 +285,7 @@ if __name__ == "__main__":
         num_sanity_val_steps=None
     )
 
-    trainer.fit(net)
+    resume_module = Net.load_from_checkpoint(r"runs/Task01_pancreas/AttentionUNet/version_5/checkpoints/epoch=24-step=850.ckpt",
+                                             learning_rate=learning_rate)
+    trainer.fit(resume_module)
     print(f"train completed, best_metric: {net.best_val_dice:.4f} " f"at epoch {net.best_val_epoch}")
