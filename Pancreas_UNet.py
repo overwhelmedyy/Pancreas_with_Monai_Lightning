@@ -1,6 +1,7 @@
 import glob
 import os
 import random
+
 import lightning
 import numpy as np
 import torch
@@ -33,15 +34,14 @@ data_dir = os.path.join(directory, task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
 tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
-troubleshooting_path = os.path.join(data_dir,"troubleshooting")
 
 set_determinism(seed=10)
 
 tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
-# 台式机显存跑满 batch_size = 8 134//8=17， log_every_n_steps=8,
-train_batch_size = 4
-val_batch_size = 4
+#
+train_batch_size = 3
+val_batch_size = 3
 learning_rate = 1e-4
 class Net(lightning.LightningModule):
     def __init__(self, learning_rate, tr_bs, val_bs):
@@ -58,7 +58,7 @@ class Net(lightning.LightningModule):
             channels=(16, 32, 64, 128, 256),
             strides=(2, 2, 2, 2),
             num_res_units=2,
-            norm=("group", {"num_groups": 4}),
+            norm=Norm.BATCH,
         )
 
         self.loss_function = DiceLoss(to_onehot_y=True, softmax=True)
@@ -202,7 +202,7 @@ class Net(lightning.LightningModule):
             batch_size=self.tr_bs,
             shuffle=True,
             num_workers=4,
-            persistent_workers=True,
+            persistent_workers=False,
             collate_fn=pad_list_data_collate
 # 把每个batch的list of data合并到一个list中
         )
@@ -211,9 +211,9 @@ class Net(lightning.LightningModule):
     def val_dataloader(self):
         val_loader = DataLoader(
             self.val_ds,
-            batch_size=self.val_ds,
+            batch_size=self.val_bs,
             num_workers=4,
-            persistent_workers=True,
+            persistent_workers=False,
             collate_fn=pad_list_data_collate
         )
         return val_loader
@@ -246,17 +246,6 @@ class Net(lightning.LightningModule):
         self.dice_metric(y_pred=outputs, y=labels)
         d = {"val_loss": loss, "val_number": len(outputs)}
         self.validation_step_outputs.append(d)
-
-        if self.dice_metric == 0:
-            # Convert tensors to NumPy arrays
-            outputs_list = [tensor.detach().cpu().numpy() for tensor in outputs]
-            labels_list = [tensor.detach().cpu().numpy() for tensor in labels]
-
-            # Save lists of NumPy arrays
-            np.save(os.path.join(troubleshooting_path,f"outputs_{self.global_step}.npy"), outputs_list)
-            np.save(os.path.join(troubleshooting_path,f"labels_{self.global_step}.npy"), labels_list)
-
-
         return d
 
     def on_validation_epoch_end(self):
@@ -265,7 +254,7 @@ class Net(lightning.LightningModule):
             val_loss += output["val_loss"].sum().item()
             num_items += output["val_number"]
         mean_val_dice = self.dice_metric.aggregate().item()
-        self. dice_metric.reset()
+        self.dice_metric.reset()
         mean_val_loss = torch.tensor(val_loss / num_items)
         tensorboard_logs = {
             "val_dice": mean_val_dice,
@@ -287,21 +276,27 @@ class Net(lightning.LightningModule):
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("medium")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-    net = Net(learning_rate=learning_rate)
+    net = Net(learning_rate=learning_rate,
+              tr_bs=train_batch_size,
+              val_bs=val_batch_size
+              )
 
     trainer = lightning.Trainer(
         devices="auto",
         max_epochs=200,
         logger=tensorboard_logger,
-        log_every_n_steps=16,
+        log_every_n_steps=25,
         enable_checkpointing=True,
         deterministic=True,
         check_val_every_n_epoch=5,
         num_sanity_val_steps=None
     )
 
-    # module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_30/checkpoints/epoch=144-step=2465.ckpt",learning_rate=learning_rate)
+    module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_0/checkpoints/epoch=889-step=59630.ckpt",
+                                             learning_rate=learning_rate,
+                                             tr_bs=train_batch_size,
+                                             val_bs=val_batch_size)
 
-    trainer.fit(net)
+    trainer.fit(module_resume)
     print(f"train completed, best_metric: {net.best_val_dice:.4f} " f"at epoch {net.best_val_epoch}")
 #
