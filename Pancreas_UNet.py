@@ -11,7 +11,7 @@ from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.layers import Norm
-from monai.networks.nets import UNet
+from monai.networks.nets import UNet,ViT
 from monai.transforms import (
     AsDiscrete,
     EnsureChannelFirstd,
@@ -22,7 +22,7 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     ScaleIntensityRanged,
     Spacingd,
-    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd
+    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd, ResizeWithPadOrCropd
 )
 from monai.utils import set_determinism
 
@@ -41,7 +41,7 @@ tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
 #
 train_batch_size = 3
-val_batch_size = 3
+val_batch_size = 1
 learning_rate = 1e-4
 class Net(lightning.LightningModule):
     def __init__(self, learning_rate, tr_bs, val_bs):
@@ -175,6 +175,19 @@ class Net(lightning.LightningModule):
                     clip=True,
                 ),
                 CropForegroundd(keys=["image", "label"], source_key="image"),
+
+                RandCropByPosNegLabeld(
+                    keys=["image", "label"],
+                    label_key="label",
+                    spatial_size=(160, 160, 160),
+                    pos=1,
+                    neg=1,
+                    num_samples=4,
+                    image_key="image",
+                    image_threshold=0,
+                    allow_smaller=True
+                ),
+                ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(160, 160, 160))
             ]
         )
 
@@ -275,7 +288,7 @@ class Net(lightning.LightningModule):
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("medium")
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:1024"
     net = Net(learning_rate=learning_rate,
               tr_bs=train_batch_size,
               val_bs=val_batch_size
@@ -283,7 +296,7 @@ if __name__ == "__main__":
 
     trainer = lightning.Trainer(
         devices="auto",
-        max_epochs=200,
+        max_epochs=1000,
         logger=tensorboard_logger,
         log_every_n_steps=25,
         enable_checkpointing=True,

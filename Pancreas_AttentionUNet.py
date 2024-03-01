@@ -41,9 +41,9 @@ set_determinism(seed=4207)
 
 tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
-train_batch_size = 4
-val_batch_size = 4
-learning_rate = 4e-4
+train_batch_size = 2
+val_batch_size = 2
+learning_rate = 2e-4
 class Net(lightning.LightningModule):
     def __init__(self,learning_rate):
         super().__init__()
@@ -201,6 +201,7 @@ class Net(lightning.LightningModule):
             num_workers=4,
             persistent_workers=True,
             collate_fn=pad_list_data_collate
+# 把每个batch的list of data合并到一个list中
         )
         return train_loader
 

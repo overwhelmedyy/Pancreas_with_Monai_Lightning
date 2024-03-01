@@ -1,0 +1,51 @@
+from einops.layers.torch import Rearrange
+import torch
+import torch.nn as nn
+
+self attention模块用到的参数：
+hidden_size (int): dimension of hidden layer
+num_heads (int): number of attention heads
+
+hidden_size = 768
+head_dim = 64
+num_heads = 12
+
+scale = head_dim**-0.5
+head_dim = hidden_size // num_heads
+
+参数：
+b = batch_size= 4
+l = num_heads= 12
+d = dim_hidden_size(dim_per_head) = 224*3(/12) = 768(64)
+h = len_input = 224*224*3/16^2 + 1 = 197
+
+
+SABlock的输入是一个tensor，shape是[batch_size, len_input, hidden_size]，其中len_input是输入的sequence有多少个patch，hidden_size(embedding)的维度。
+qkv, q=k=v,三者是一个东西复制出三份，所以输出的size是输入的size*3
+rearrange，把qkv放到第一个dim方便拆，hidden_size是整个sablock的，分给每个注意力头:b h (qkv l d) -> qkv b l h d
+拆分qkv：q, k, v = output[0], output[1], output[2]
+计算q,k的相似度：torch.einsum("blxd,blyd->blxy", q, k)
+
+网络搭建：
+qkv = nn.Linear(hidden_size, hidden_size * 3, bias=qkv_bias)
+input_rearrange = Rearrange("b h (qkv l d) -> qkv b l h d", qkv=3, l=num_heads)
+out_rearrange = Rearrange("b h l d -> b l (h d)")
+out_proj = nn.Linear(hidden_size, hidden_size)
+
+运行：
+input = torch.rand(4,197,768)
+qkv_output = qkv(input)                                                                     #qkv_output.shape = [4, 197, 2304]
+input_rearrange_output = input_rearrange(qkv_output)                                        #input_rearrange_output.shape = [3(qkv),4(bs),12(num_heads),197(len_seq),64(dim_per_head)]
+q, k, v = input_rearrange_output[0], input_rearrange_output[1], input_rearrange_output[2]   #q.shape = [4, 12, 197, 64]
+att_mat = (torch.einsum("blxd,blyd->blxy", q, k) * self.scale).softmax(dim=-1)              #att_mat.shape = [4, 12, 197, 197]
+x = torch.einsum("bhxy,bhyd->bhxd", att_mat, v)                                             #x.shape = [4, 12, 197, 64]
+x_1 = out_rearrange(x)                                                                      #x_1.shape = [4, 197, 768]
+x_2 = out_proj(x_1)                                                                         #x_2.shape = [4, 197, 768]
+
+torch.max(x_2)
+Out[40]: tensor(0.5751, grad_fn=<MaxBackward1>)
+torch.min(x_2)
+Out[41]: tensor(-0.4959, grad_fn=<MinBackward1>)
+torch.sum(x_2)
+Out[42]: tensor(5079.5010, grad_fn=<SumBackward0>)
+

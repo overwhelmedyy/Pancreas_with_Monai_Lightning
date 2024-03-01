@@ -1,0 +1,8 @@
+from einops.layers.torch import Rearrange
+
+hidden_size (int): dimension of hidden layer.
+num_heads (int): number of attention heads.
+input = torch.rand(4,197,768)
+qkv_output = qkv(input)
+input_rearrange = Rearrange("b h (qkv l d) -> qkv b l h d", qkv=3, l=num_heads)
+input_rearrange_output = input_rearrange(qkv_output)

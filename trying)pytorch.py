@@ -31,12 +31,12 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     ScaleIntensityRanged,
     Spacingd,
-    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd
+    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd, ResizeWithPadOrCropd
 )
 from monai.utils import set_determinism
 
 task_name = "Task01_pancreas"
-network_name = "UNet"
+network_name = "UNet_pytorch"
 
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, task_name)
@@ -44,19 +44,16 @@ persistent_cache = os.path.join(data_dir, "persistent_cache")
 tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
+tb_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
+ckpt_dir = os.path.join(tb_logger.log_dir, "checkpoints")
+os.makedirs(ckpt_dir, exist_ok=True)
+
+
 args = argparse.Namespace(
     no_cuda=False,                  # disables CUDA training
-    patch_size=16,                  # patch size for images (default : 16)
-    latent_size=768,                # latent size (default : 768)
-    n_channels=3,                   # number of channels in images (default : 3 for RGB)
-    num_heads=12,                   # (default : 12)
-    num_encoders=12,                # number of encoders (default : 12)
-    dropout=0.1,                    # dropout value (default : 0.1)
-    img_size=224,                   # image size to be reshaped to (default : 224)
-    num_classes=10,                 # number of classes in dataset (default : 10 for CIFAR10)
     epochs=10,                      # number of epochs (default : 10)
     lr=1e-2,                        # base learning rate (default : 0.01)
-    weight_decay=3e-2,              # weight decay value (default : 0.03)
+    weight_decay=3e-3,              # weight decay value (default : 0.03)
     batch_size=3,                   # batch size (default : 4)
     dry_run=False                  # quickly check a single pass
 )
@@ -89,7 +86,9 @@ class TrainEval:
             self.optimizer.step()
 
             total_loss += loss.item()
-            tk.set_postfix({"Loss": "%6f" % float(total_loss / (t + 1))})
+            average_loss = total_loss / (t + 1)
+            tb_logger.experiment.add_scalar("train_loss", average_loss, t)
+            tk.set_postfix({"Loss": "%6f" % float(average_loss)})
             if self.args.dry_run:
                 break
 
@@ -108,7 +107,9 @@ class TrainEval:
             loss = self.criterion(logits, labels)
 
             total_loss += loss.item()
-            tk.set_postfix({"Loss": "%6f" % float(total_loss / (t + 1))})
+            average_loss = total_loss / (t + 1)
+            tb_logger.experiment.add_scalar("val_loss", average_loss, current_epoch)
+            tk.set_postfix({"Loss": "%6f" % float(average_loss)})
             if self.args.dry_run:
                 break
 
@@ -122,7 +123,8 @@ class TrainEval:
             val_loss = self.eval_fn(i)
 
             if val_loss < best_valid_loss:
-                torch.save(self.model.state_dict(), "best-weights.pt")
+
+                torch.save(self.model.state_dict(), ckpt_dir + f"/best_model_{i}epoch.pth")
                 print("Saved Best Weights")
                 best_valid_loss = val_loss
                 best_train_loss = train_loss
@@ -244,13 +246,25 @@ def main():
                 clip=True,
             ),
             CropForegroundd(keys=["image", "label"], source_key="image"),
+            RandCropByPosNegLabeld(
+                keys=["image", "label"],
+                label_key="label",
+                spatial_size=(160, 160, 160),
+                pos=1,
+                neg=1,
+                num_samples=4,
+                image_key="image",
+                image_threshold=0,
+                allow_smaller=True
+            ),
+            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(160, 160, 160))
         ]
     )
 
     train_dataset = PersistentDataset(data=train_files, transform=train_transforms, cache_dir=persistent_cache)
     valid_dataset = PersistentDataset(data=val_files, transform=val_transforms,cache_dir=persistent_cache)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
+    valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
 
     model = UNet(
             spatial_dims=3,
@@ -263,7 +277,7 @@ def main():
         ).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    criterion = DiceLoss(to_onehot_y=True, softmax=True)
+criterion = DiceLoss(to_onehot_y=True, softmax=True)
 
     TrainEval(args, model, train_loader, valid_loader, optimizer, criterion, device).train()
 

@@ -6,7 +6,6 @@ import torchvision
 from torchvision.transforms import Compose, ToTensor, Resize
 from torch import optim
 
-import re
 from torch.hub import tqdm
 import glob
 import os
@@ -16,8 +15,7 @@ import lightning
 import numpy as np
 import torch
 from lightning.pytorch.loggers import TensorBoardLogger
-from monai.data import pad_list_data_collate, list_data_collate, decollate_batch, DataLoader, PersistentDataset, \
-    Dataset, CacheDataset
+from monai.data import pad_list_data_collate, list_data_collate, decollate_batch, DataLoader, PersistentDataset,Dataset, CacheDataset
 from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
@@ -36,6 +34,7 @@ from monai.transforms import (
     EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd, ResizeWithPadOrCropd
 )
 
+
 task_name = "Task01_pancreas"
 network_name = "UNet"
 
@@ -46,7 +45,7 @@ tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
 args = argparse.Namespace(
-    no_cuda=False,  # disables CUDA training
+    no_cuda=False,                  # disables CUDA training
     # patch_size=16,                  # patch size for images (default : 16)
     # latent_size=768,                # latent size (default : 768)
     # n_channels=3,                   # number of channels in images (default : 3 for RGB)
@@ -55,11 +54,11 @@ args = argparse.Namespace(
     # dropout=0.1,                    # dropout value (default : 0.1)
     # img_size=224,                   # image size to be reshaped to (default : 224)
     # num_classes=10,                 # number of classes in dataset (default : 10 for CIFAR10)
-    epochs=1,  # number of epochs (default : 10)
-    lr=1e-2,  # base learning rate (default : 0.01)
-    weight_decay=3e-2,  # weight decay value (default : 0.03)
-    batch_size=1,  # batch size (default : 4)
-    dry_run=False  # quickly check a single pass
+    epochs=10,                      # number of epochs (default : 10)
+    lr=1e-2,                        # base learning rate (default : 0.01)
+    weight_decay=3e-2,              # weight decay value (default : 0.03)
+    batch_size=1,                   # batch size (default : 4)
+    dry_run=False                  # quickly check a single pass
 )
 
 
@@ -74,40 +73,37 @@ class PlainVal:
         self.epoch = args.epochs
         self.device = device
         self.args = args
-        self.post_pred = Compose(
-            [EnsureType("tensor", device=torch.device("cpu")), AsDiscrete(argmax=True, to_onehot=2)])
-        self.post_label = Compose([EnsureType("tensor", device=torch.device("cpu")), AsDiscrete(to_onehot=2)])
-
-
 
     def eval_fn(self, current_epoch):
         self.model.eval()
+        total_loss = 0.0
         tk = tqdm(self.val_dataloader, desc="EPOCH" + "[VALID]" + str(current_epoch + 1) + "/" + str(self.epoch))
 
         for t, data in enumerate(tk):
             images, labels = data["image"], data["label"]
             images, labels = images.to(self.device), labels.to(self.device)
 
-            # logits = sliding_window_inference(images, roi_size=[160,160,160], sw_batch_size=4, predictor=self.model)
             logits = self.model(images)
-            logits = [self.post_pred(i) for i in decollate_batch(logits)]
-            labels = [self.post_label(i) for i in decollate_batch(labels)]
+            loss = self.criterion(logits, labels)
 
-            self.criterion(logits, labels)
-            pass
+            total_loss += loss.item()
+            tk.set_postfix({"Loss": "%6f" % float(total_loss / (t + 1))})
+            if self.args.dry_run:
+                break
+
+        return total_loss / len(self.val_dataloader)
 
     def valdation(self):
-        best_dice_metric = np.inf
-
+        best_valid_loss = np.inf
         for i in range(self.epoch):
-            self.eval_fn(i)
-            dice_metric = self.criterion.aggregate().item()
-            if dice_metric < best_dice_metric:
-                best_dice_metric = dice_metric
-            print(f"Dice Metric : {dice_metric}")
+            val_loss = self.eval_fn(i)
 
-        print(f"Best valid Loss : {best_dice_metric}")
-        self.criterion.reset()
+            if val_loss < best_valid_loss:
+                print("Saved Best Weights")
+                best_valid_loss = val_loss
+
+            print(f"valid Loss : {val_loss}")
+        print(f"Best valid Loss : {best_valid_loss}")
 
     '''
         On default settings:
@@ -132,12 +128,78 @@ def main():
     # 读数据的名字
     train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
     train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
-    data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
-                  zip(train_images, train_labels)]  # 注意到data_dicts是一个数组
+    data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in zip(train_images, train_labels)]  # 注意到data_dicts是一个数组
 
     # 拆分成train和val
     validation_files = random.sample(data_dicts, round(0.3 * len(data_dicts)))
 
+
+    train_transforms = Compose(
+        [
+            LoadImaged(keys=["image", "label"]),
+            EnsureChannelFirstd(keys=["image", "label"]),
+            # LabelToMaskd(keys=['label'],select_labels=[0,2]),
+            Orientationd(keys=["image", "label"], axcodes="RAS"),
+            Spacingd(
+                keys=["image", "label"],
+                pixdim=(1.5, 1.5, 2.0),
+                mode=("bilinear", "nearest"),
+            ),
+            ScaleIntensityRanged(
+                keys=["image"],
+                a_min=-1024,
+                a_max=2976,
+                b_min=0.0,
+                b_max=1.0,
+                clip=True,
+            ),
+            CropForegroundd(keys=["image", "label"], source_key="image"),
+            # randomly crop out patch samples from
+            # big image based on pos / neg ratio
+            # the image centers of negative samples
+            # must be in valid image area
+            RandCropByPosNegLabeld(
+                keys=["image", "label"],
+                label_key="label",
+                spatial_size=(96, 96, 96),
+                pos=1,
+                neg=1,
+                num_samples=4,
+                image_key="image",
+                image_threshold=0,
+            ),
+
+            RandAffined(
+                keys=['image', 'label'],
+                mode=('bilinear', 'nearest'),
+                prob=1.0,
+                spatial_size=(96, 96, 96),
+                rotate_range=(0, 0, np.pi / 15),
+                scale_range=(0.1, 0.1, 0.1)),
+
+            RandRotated(
+                keys=['image', 'label'],
+                range_x=np.pi / 4,
+                range_y=np.pi / 4,
+                range_z=np.pi / 4,
+                prob=0.4,
+                keep_size=True
+            ),
+            RandFlipd(
+                keys=['image', 'label'],
+                prob=0.5
+            ),
+            Rand3DElasticd(
+                keys=['image', 'label'],
+                sigma_range=(5, 8),
+                magnitude_range=(100, 200),
+                prob=0.5,
+                rotate_range=(0, 0, np.pi / 15),
+                scale_range=(0.2, 0.2, 0.2),
+                spatial_size=(96, 96, 96),
+                mode=('bilinear', 'nearest'))
+        ]
+    )
     val_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
@@ -173,20 +235,19 @@ def main():
         ]
     )
 
-    validation_dataset = PersistentDataset(data=validation_files, transform=val_transforms, cache_dir=persistent_cache)
-    valid_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True,
-                              collate_fn=pad_list_data_collate, num_workers=4)
+    validation_dataset = PersistentDataset(data=validation_files, transform=val_transforms,cache_dir=persistent_cache)
+    valid_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True,collate_fn=pad_list_data_collate, num_workers=4)
 
     model = UNet(
-        spatial_dims=3,
-        in_channels=1,
-        out_channels=2,
-        channels=(16, 32, 64, 128, 256),
-        strides=(2, 2, 2, 2),
-        num_res_units=2,
-        norm=Norm.BATCH,
-    )
-    ckpt = torch.load("runs/Task01_pancreas/UNet/version_0/checkpoints/epoch=889-step=59630.ckpt")
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=2,
+            channels=(16, 32, 64, 128),
+            strides=(2, 2, 2),
+            num_res_units=2,
+            norm=Norm.BATCH,
+        )
+    ckpt = torch.load("runs/Task01_pancreas/UNet/version_36/checkpoints/epoch=99-step=6700.ckpt")
 
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
@@ -199,12 +260,10 @@ def main():
     new_state_dict.pop("loss_function.class_weight")
     model.load_state_dict(new_state_dict)
     model.to(device)
-    criterion = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
+    criterion = DiceLoss(to_onehot_y=True, softmax=True)
 
     PlainVal(args, model, valid_loader, criterion, device).valdation()
 
 
 if __name__ == "__main__":
-    for i in range(50):
-
-        main()
+    main()
