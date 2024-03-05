@@ -45,6 +45,8 @@ persistent_cache = os.path.join(data_dir, "persistent_cache")
 tensorboard_dir = os.path.join("./runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
+all = []
+
 args = argparse.Namespace(
     no_cuda=False,  # disables CUDA training
     # patch_size=16,                  # patch size for images (default : 16)
@@ -82,6 +84,7 @@ class PlainVal:
 
     def eval_fn(self, current_epoch):
         self.model.eval()
+        total_loss = 0.0
         tk = tqdm(self.val_dataloader, desc="EPOCH" + "[VALID]" + str(current_epoch + 1) + "/" + str(self.epoch))
 
         for t, data in enumerate(tk):
@@ -100,11 +103,11 @@ class PlainVal:
         best_dice_metric = np.inf
 
         for i in range(self.epoch):
-            self.eval_fn(i)
-            dice_metric = self.criterion.aggregate().item()
-            if dice_metric < best_dice_metric:
-                best_dice_metric = dice_metric
-            print(f"Dice Metric : {dice_metric}")
+                self.eval_fn(i)
+                dice_metric = self.criterion.aggregate().item()
+                if dice_metric < best_dice_metric:
+                    best_dice_metric = dice_metric
+                print(f"Dice Metric : {dice_metric}")
 
         print(f"Best valid Loss : {best_dice_metric}")
         self.criterion.reset()
@@ -136,7 +139,10 @@ def main():
                   zip(train_images, train_labels)]  # 注意到data_dicts是一个数组
 
     # 拆分成train和val
-    validation_files = random.sample(data_dicts, round(0.3 * len(data_dicts)))
+    # validation_files = random.sample(data_dicts, round(0.3 * len(data_dicts)))
+
+    # 挑数据集，把整个data_dicts都归进validation_files
+    validation_files = data_dicts
 
     val_transforms = Compose(
         [
@@ -186,7 +192,7 @@ def main():
         num_res_units=2,
         norm=Norm.BATCH,
     )
-    ckpt = torch.load("runs/Task01_pancreas/UNet/version_0/checkpoints/epoch=889-step=59630.ckpt")
+    ckpt = torch.load("runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt   ")
 
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
@@ -205,6 +211,13 @@ def main():
 
 
 if __name__ == "__main__":
-    for i in range(50):
-        pass
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
+    for i in  range(100):
         main()
+
+    ave = sum(all) / len(all)
+    print(f"all = {all}")
+    print(f"ave = {ave}")
+    print(f"max = {max(all)}")
+    print(f"min = {min(all)}")
+

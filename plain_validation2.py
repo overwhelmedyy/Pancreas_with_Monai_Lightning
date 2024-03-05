@@ -247,7 +247,7 @@ def main():
             num_res_units=2,
             norm=Norm.BATCH,
         )
-    ckpt = torch.load("runs/Task01_pancreas/UNet/version_36/checkpoints/epoch=99-step=6700.ckpt")
+    ckpt = torch.load("runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt")
 
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
