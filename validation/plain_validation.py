@@ -1,10 +1,6 @@
 import argparse
-import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
-import torchvision
 from torchvision.transforms import Compose, ToTensor, Resize
-from torch import optim
 
 import re
 from torch.hub import tqdm
@@ -37,30 +33,35 @@ from monai.transforms import (
 )
 
 task_name = "Task01_pancreas"
-network_name = "UNet"
-
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
-tensorboard_dir = os.path.join("./runs", f"{task_name}")
+tensorboard_dir = os.path.join("../runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
-all = []
+modulepth = r"runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt"
+criterion_name = "DiceMetric"
+
+import re
+
+# Define the pattern using regular expression
+pattern = r'runs/Task01_pancreas/(\w+)/(\w+_\d+)/checkpoints'
+
+# Use the search function to find the pattern in the input string
+match = re.search(pattern, modulepth)
+
+# Check if a match is found
+assert match, "module pth do not contain the pattern"
+    # Extract the matched groups
+network_name = match.group(1)
+version_number = match.group(2)
 
 args = argparse.Namespace(
     no_cuda=False,  # disables CUDA training
-    # patch_size=16,                  # patch size for images (default : 16)
-    # latent_size=768,                # latent size (default : 768)
-    # n_channels=3,                   # number of channels in images (default : 3 for RGB)
-    # num_heads=12,                   # (default : 12)
-    # num_encoders=12,                # number of encoders (default : 12)
-    # dropout=0.1,                    # dropout value (default : 0.1)
-    # img_size=224,                   # image size to be reshaped to (default : 224)
-    # num_classes=10,                 # number of classes in dataset (default : 10 for CIFAR10)
-    epochs=1,  # number of epochs (default : 10)
+    epochs=10,  # number of epochs (default : 10)
     lr=1e-2,  # base learning rate (default : 0.01)
     weight_decay=3e-2,  # weight decay value (default : 0.03)
-    batch_size=1,  # batch size (default : 4)
+    batch_size=8,  # batch size (default : 4)
     dry_run=False  # quickly check a single pass
 )
 
@@ -71,7 +72,6 @@ class PlainVal:
         self.model = model
 
         self.val_dataloader = val_dataloader
-
         self.criterion = criterion
         self.epoch = args.epochs
         self.device = device
@@ -79,8 +79,6 @@ class PlainVal:
         self.post_pred = Compose(
             [EnsureType("tensor", device=torch.device("cpu")), AsDiscrete(argmax=True, to_onehot=2)])
         self.post_label = Compose([EnsureType("tensor", device=torch.device("cpu")), AsDiscrete(to_onehot=2)])
-
-
 
     def eval_fn(self, current_epoch):
         self.model.eval()
@@ -95,7 +93,6 @@ class PlainVal:
             logits = self.model(images)
             logits = [self.post_pred(i) for i in decollate_batch(logits)]
             labels = [self.post_label(i) for i in decollate_batch(labels)]
-
             self.criterion(logits, labels)
             pass
 
@@ -105,28 +102,9 @@ class PlainVal:
         for i in range(self.epoch):
                 self.eval_fn(i)
                 dice_metric = self.criterion.aggregate().item()
-                if dice_metric < best_dice_metric:
-                    best_dice_metric = dice_metric
+                all.append(dice_metric)
                 print(f"Dice Metric : {dice_metric}")
-
-        print(f"Best valid Loss : {best_dice_metric}")
         self.criterion.reset()
-
-    '''
-        On default settings:
-
-        Training Loss : 2.3081023390197752
-        Valid Loss : 2.302861615943909
-
-        However, this score is not competitive compared to the 
-        high results in the original paper, which were achieved 
-        through pre-training on JFT-300M dataset, then fine-tuning 
-        it on the target dataset. To improve the model quality 
-        without pre-training, we could try training for more epochs, 
-        using more Transformer layers, resizing images or changing 
-        patch size,
-    '''
-
 
 def main():
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -192,7 +170,7 @@ def main():
         num_res_units=2,
         norm=Norm.BATCH,
     )
-    ckpt = torch.load("runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt   ")
+    ckpt = torch.load(modulepth)
 
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
@@ -209,15 +187,44 @@ def main():
 
     PlainVal(args, model, valid_loader, criterion, device).valdation()
 
+def write_record():
+        now = datetime.datetime.now()
+        instant_time = now.strftime("%Y-%m-%d\n"
+                                    "%H:%M:%S")
+        wb = load_workbook(f"validation_results/{network_name}.xlsx")
+
+        # Check if the sheet exists
+        if network_name in wb.sheetnames:
+            # If the sheet exists, select it
+            sheet = wb[network_name]
+        else:
+            # If the sheet does not exist, create it
+            sheet = wb.create_sheet(network_name)
+        ws = wb.active
+        column = 1
+        while ws.cell(1, column).value is not None:
+            column += 2
+        # Iterate over the list and append each item to the worksheet
+        sheet.cell(row=1, column=column, value=instant_time)
+        sheet.cell(row=2, column=column, value=criterion_name)
+
+        for i, mean_dice in enumerate(all):
+            sheet.cell(row=i + 3, column=column,
+                       value=mean_dice)  # append() expects a list, even if it's a single element
+        # Save the workbook to a new xlsx file
+        wb.save(f"validation_files/{network_name}.xlsx")
+        wb.close()
+
 
 if __name__ == "__main__":
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-    for i in  range(100):
-        main()
 
-    ave = sum(all) / len(all)
-    print(f"all = {all}")
-    print(f"ave = {ave}")
-    print(f"max = {max(all)}")
-    print(f"min = {min(all)}")
+    all=[]
+    from openpyxl import load_workbook
+    import datetime
+    import atexit
+    atexit.register(write_record)
+
+    main()
+    write_record()
 

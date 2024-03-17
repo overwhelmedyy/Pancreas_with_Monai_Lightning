@@ -34,7 +34,7 @@ network_name = "SwinUNETR"
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
-tensorboard_dir = os.path.join("./runs", f"{task_name}")
+tensorboard_dir = os.path.join("../runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
 set_determinism(seed=0)

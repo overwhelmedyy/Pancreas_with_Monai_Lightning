@@ -1,3 +1,7 @@
+
+
+# 用lightningDataModule做k-fold validation，好像没有做成，先保留这个文件
+
 import lightning
 
 from monai.utils import set_determinism
@@ -31,7 +35,7 @@ from lightning.pytorch.loggers import TensorBoardLogger
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, "Task09_Spleen")
 persistent_cache = os.path.join(data_dir, "persistent_cache")
-tensorboard_dir = r"./runs"
+tensorboard_dir = r"../runs"
 cuda = torch.device("cuda:0")
 
 set_determinism(seed=0)
@@ -251,7 +255,7 @@ class Net(lightning.LightningModule):
 if __name__ == "__main__":
     net = Net()
 
-    log_dir = os.path.join(data_dir, "logs")
+    log_dir = os.path.join(data_dir, "../logs")
     tb_logger = TensorBoardLogger(log_dir)
 
     trainer = lightning.Trainer(

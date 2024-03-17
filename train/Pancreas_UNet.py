@@ -3,6 +3,7 @@ import os
 import random
 
 import lightning
+import monai
 import numpy as np
 import torch
 from lightning.pytorch.loggers import TensorBoardLogger
@@ -11,8 +12,7 @@ from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.layers import Norm
-from monai.networks.nets import UNet
-from monai.networks.nets import AttentionUnet
+from monai.networks.nets import UNet,ViT
 from monai.transforms import (
     AsDiscrete,
     EnsureChannelFirstd,
@@ -23,39 +23,44 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     ScaleIntensityRanged,
     Spacingd,
-    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd
+    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd, ResizeWithPadOrCropd
 )
 from monai.utils import set_determinism
 
 task_name = "Task01_pancreas"
-network_name = "AttentionUNet"
+network_name = "UNet"
 
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
-tensorboard_dir = os.path.join("./runs", f"{task_name}")
+tensorboard_dir = os.path.join("../runs", f"{task_name}")
 cuda = torch.device("cuda:0")
-troubleshooting_path = os.path.join(data_dir,"troubleshooting")
 
-set_determinism(seed=4207)
+set_determinism(seed=10)
 
 tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 
-train_batch_size = 2
-val_batch_size = 2
-learning_rate = 2e-4
+# 台式机显存跑满 batch_size = 8 134//8=17， log_every_n_steps=8,
+train_batch_size = 8
+val_batch_size = 8
+learning_rate = 5e-4
 class Net(lightning.LightningModule):
-    def __init__(self,learning_rate):
+    def __init__(self, learning_rate, tr_bs, val_bs):
         super().__init__()
-        self.learning_rate = learning_rate
         self.val_ds = None
         self.train_ds = None
-        self._model = AttentionUnet(
+        self.learning_rate = learning_rate
+        self.tr_bs = tr_bs
+        self.val_bs = val_bs
+        self._model = UNet(
             spatial_dims=3,
             in_channels=1,
             out_channels=2,
             channels=(16, 32, 64, 128, 256),
-            strides=(2, 2, 2, 2)
+            strides=(2, 2, 2, 2),
+            num_res_units=2,
+            norm=Norm.BATCH
+            # norm=("group", {"num_groups":2,}),
         )
 
         self.loss_function = DiceLoss(to_onehot_y=True, softmax=True)
@@ -114,11 +119,12 @@ class Net(lightning.LightningModule):
                     keys=["image", "label"],
                     label_key="label",
                     spatial_size=(96, 96, 96),
-                    pos=1,
+                    pos=6,
                     neg=1,
                     num_samples=4,
-                    image_key="image",
-                    image_threshold=0,
+                    allow_smaller=True
+                    # image_key="image",
+                    # image_threshold=0,
                 ),
 
                 RandAffined(
@@ -149,7 +155,11 @@ class Net(lightning.LightningModule):
                     rotate_range=(0, 0, np.pi / 15),
                     scale_range=(0.2, 0.2, 0.2),
                     spatial_size=(96, 96, 96),
-                    mode=('bilinear', 'nearest'))
+                    mode=('bilinear', 'nearest')),
+
+                ResizeWithPadOrCropd(keys=["image", "label"],
+                                     spatial_size=(96, 96, 96),
+                                     mode='constant')
             ]
         )
         val_transforms = Compose(
@@ -172,6 +182,19 @@ class Net(lightning.LightningModule):
                     clip=True,
                 ),
                 CropForegroundd(keys=["image", "label"], source_key="image"),
+
+                RandCropByPosNegLabeld(
+                    keys=["image", "label"],
+                    label_key="label",
+                    spatial_size=(160, 160, 160),
+                    pos=1,
+                    neg=1,
+                    num_samples=4,
+                    image_key="image",
+                    image_threshold=0,
+                    allow_smaller=True
+                ),
+                ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(160, 160, 160))
             ]
         )
 
@@ -188,15 +211,15 @@ class Net(lightning.LightningModule):
         )
 
 
-#         self.train_ds = monai.data.Dataset(
-#             data=train_files, transform=train_transforms)
-#         self.val_ds = Dataset(
-#             data=val_files, transform=val_transforms)
+        # self.train_ds = monai.data.Dataset(
+        #     data=train_files, transform=train_transforms)
+        # self.val_ds = Dataset(
+        #     data=val_files, transform=val_transforms)
 
     def train_dataloader(self):
         train_loader = DataLoader(
             self.train_ds,
-            batch_size=train_batch_size,
+            batch_size=self.tr_bs,
             shuffle=True,
             num_workers=4,
             persistent_workers=True,
@@ -208,7 +231,7 @@ class Net(lightning.LightningModule):
     def val_dataloader(self):
         val_loader = DataLoader(
             self.val_ds,
-            batch_size=val_batch_size,
+            batch_size=self.val_bs,
             num_workers=4,
             persistent_workers=True,
             collate_fn=pad_list_data_collate
@@ -217,7 +240,8 @@ class Net(lightning.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self._model.parameters(), self.learning_rate)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [50, 200], gamma=0.5)
+        return [optimizer], [scheduler]
 
     def training_step(self, batch, batch_idx):
         images, labels = batch["image"], batch["label"]
@@ -234,9 +258,9 @@ class Net(lightning.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, labels = batch["image"], batch["label"]
         self.tb_logger.add_text("label shape", f"{labels[0].shape}")
-        roi_size = (160, 160, 160)
-        sw_batch_size = 4
-        outputs = sliding_window_inference(images, roi_size, sw_batch_size, self.forward)
+        roi_size = (160,160,160)
+
+        outputs = sliding_window_inference(images, roi_size,sw_batch_size=8, predictor=self.forward)
         loss = self.loss_function(outputs, labels)
         outputs = [self.post_pred(i) for i in decollate_batch(outputs)]
         labels = [self.post_label(i) for i in decollate_batch(labels)]
@@ -251,7 +275,7 @@ class Net(lightning.LightningModule):
             val_loss += output["val_loss"].sum().item()
             num_items += output["val_number"]
         mean_val_dice = self.dice_metric.aggregate().item()
-        self. dice_metric.reset()
+        self.dice_metric.reset()
         mean_val_loss = torch.tensor(val_loss / num_items)
         tensorboard_logs = {
             "val_dice": mean_val_dice,
@@ -273,20 +297,27 @@ class Net(lightning.LightningModule):
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("medium")
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-    net = Net(learning_rate=9e-5)
+    net = Net(learning_rate=learning_rate,
+              tr_bs=train_batch_size,
+              val_bs=val_batch_size
+              )
 
     trainer = lightning.Trainer(
         devices="auto",
         max_epochs=1000,
         logger=tensorboard_logger,
-        log_every_n_steps=25,
+        log_every_n_steps=8,
         enable_checkpointing=True,
         deterministic=True,
         check_val_every_n_epoch=5,
         num_sanity_val_steps=None
     )
 
-    resume_module = Net.load_from_checkpoint(r"runs/Task01_pancreas/AttentionUNet/version_5/checkpoints/epoch=24-step=850.ckpt",
-                                             learning_rate=learning_rate)
-    trainer.fit(resume_module)
+    module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_10/checkpoints/epoch=889-step=59630.ckpt",
+                                             learning_rate=learning_rate,
+                                             tr_bs=train_batch_size,
+                                             val_bs=val_batch_size)
+
+    trainer.fit(module_resume)
     print(f"train completed, best_metric: {net.best_val_dice:.4f} " f"at epoch {net.best_val_epoch}")
+#

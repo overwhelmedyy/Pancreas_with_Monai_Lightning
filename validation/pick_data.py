@@ -29,7 +29,7 @@ network_name = "UNet"
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
-tensorboard_dir = os.path.join("./runs", f"{task_name}")
+tensorboard_dir = os.path.join("../runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
 args = argparse.Namespace(
@@ -101,7 +101,7 @@ if __name__ == "__main__":
         num_res_units=2,
         norm=Norm.BATCH,
     )
-    ckpt = torch.load("runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt")
+    ckpt = torch.load("../runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt")
 
     post_pred = Compose(
         [EnsureType("tensor", device=torch.device("cpu")), AsDiscrete(argmax=True, to_onehot=2)])
