@@ -27,6 +27,7 @@ from monai.transforms import (
     Rand3DElasticd,
 )
 from monai.utils import set_determinism
+from DUXNet.networks.UXNet_3D.network_backbone import UXNET
 
 task_name = "Task01_pancreas"
 network_name = "SwinUNETR"

@@ -336,6 +336,35 @@ class SwinUNETR(nn.Module):
         logits = self.out(out)            # 2 48 96 96 96 --> 2 2 96 96 96
         return logits
 
+    def para_num(self):
+        swinViT_num = sum(p.numel() for p in self.swinViT.parameters())
+        encoder1_num = sum(p.numel() for p in self.encoder1.parameters())
+        encoder2_num = sum(p.numel() for p in self.encoder2.parameters())
+        encoder3_num = sum(p.numel() for p in self.encoder3.parameters())
+        encoder4_num = sum(p.numel() for p in self.encoder4.parameters())
+        encoder10_num = sum(p.numel() for p in self.encoder10.parameters())
+        decoder5_num = sum(p.numel() for p in self.decoder5.parameters())
+        decoder4_num = sum(p.numel() for p in self.decoder4.parameters())
+        decoder3_num = sum(p.numel() for p in self.decoder3.parameters())
+        decoder2_num = sum(p.numel() for p in self.decoder2.parameters())
+        decoder1_num = sum(p.numel() for p in self.decoder1.parameters())
+        out_num = sum(p.numel() for p in self.out.parameters())
+
+        print(f'swinViT_num: {swinViT_num}', f'{swinViT_num / 1_000_000:.2f}M\n'
+                f'encoder1_num: {encoder1_num}', f'{encoder1_num / 1_000_000:.2f}M\n'
+                f'encoder2_num: {encoder2_num}', f'{encoder2_num / 1_000_000:.2f}M\n'
+                f'encoder3_num: {encoder3_num}', f'{encoder3_num / 1_000_000:.2f}M\n'
+                f'encoder4_num: {encoder4_num}', f'{encoder4_num / 1_000_000:.2f}M\n'
+                f'encoder10_num: {encoder10_num}', f'{encoder10_num / 1_000_000:.2f}M\n'
+                f'decoder5_num: {decoder5_num}', f'{decoder5_num / 1_000_000:.2f}M\n'
+                f'decoder4_num: {decoder4_num}', f'{decoder4_num / 1_000_000:.2f}M\n'
+                f'decoder3_num: {decoder3_num}', f'{decoder3_num / 1_000_000:.2f}M\n'
+                f'decoder2_num: {decoder2_num}', f'{decoder2_num / 1_000_000:.2f}M\n'
+                f'decoder1_num: {decoder1_num}', f'{decoder1_num / 1_000_000:.2f}M\n'
+                f'out_num: {out_num}', f'{out_num / 1_000_000:.2f}M\n'
+                f'total_num: {swinViT_num + encoder1_num + encoder2_num + encoder3_num + encoder4_num + encoder10_num + decoder5_num + decoder4_num + decoder3_num + decoder2_num + decoder1_num + out_num}', f'{(swinViT_num + encoder1_num + encoder2_num + encoder3_num + encoder4_num + encoder10_num + decoder5_num + decoder4_num + decoder3_num + decoder2_num + decoder1_num + out_num) / 1_000_000:.2f}M\n'
+                )
+
 
 def window_partition(x, window_size):
     """window partition operation based on: "Liu et al.,

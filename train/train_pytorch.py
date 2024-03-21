@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 import torchvision
 from torchvision.transforms import Compose, ToTensor, Resize
 from torch import optim
+from DUXNet.networks.UXNet_3D.network_backbone import UXNET
 
 from torch.hub import tqdm
 import glob
@@ -20,7 +21,7 @@ from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.layers import Norm
-from monai.networks.nets import UNet
+from monai.networks.nets import UNet, SwinUNETR
 from monai.transforms import (
     AsDiscrete,
     EnsureChannelFirstd,
@@ -54,7 +55,7 @@ args = argparse.Namespace(
     epochs=10,                      # number of epochs (default : 10)
     lr=1e-2,                        # base learning rate (default : 0.01)
     weight_decay=3e-3,              # weight decay value (default : 0.03)
-    batch_size=3,                   # batch size (default : 4)
+    batch_size=1,                   # batch size (default : 4)
     dry_run=False                  # quickly check a single pass
 )
 
@@ -266,15 +267,31 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
     valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
 
-    model = UNet(
-            spatial_dims=3,
-            in_channels=1,
-            out_channels=2,
-            channels=(16, 32, 64, 128, 256),
-            strides=(2, 2, 2, 2),
-            num_res_units=2,
-            norm=Norm.BATCH,
-        ).to(device)
+    # model = UNet(
+    #         spatial_dims=3,
+    #         in_channels=1,
+    #         out_channels=2,
+    #         channels=(16, 32, 64, 128, 256),
+    #         strides=(2, 2, 2, 2),
+    #         num_res_units=2,
+    #         norm=Norm.BATCH,
+    #     ).to(device)
+
+    # model = UXNET(
+    #     in_chans=1,
+    #     out_chans=2,
+    #     depths=[2, 2, 2, 2],
+    #     feat_size=[48, 96, 192, 384],
+    #     drop_path_rate=0,
+    #     layer_scale_init_value=1e-6,
+    #     spatial_dims=3,
+    # ).to(device)
+    model = SwinUNETR(
+        spatial_dims=3,
+        in_channels=1,
+        out_channels=2,
+        img_size=(96, 96, 96)
+    ).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     criterion = DiceLoss(to_onehot_y=True, softmax=True)

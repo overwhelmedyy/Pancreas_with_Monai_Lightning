@@ -65,6 +65,10 @@ args = argparse.Namespace(
     dry_run=False  # quickly check a single pass
 )
 
+block_list = ['0006', '0009', '0013', '0022', '0027', '0032', '0048', '0051',
+              '0078', '0079', '0082', '0088', '0089', '0094', '0100', '0113',
+              '0131', '0136', '0139', '0142']
+
 
 class PlainVal:
 
@@ -113,8 +117,12 @@ def main():
     # 读数据的名字
     train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
     train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
+
+    fltr_train_images = [string for string in train_images if not any(block in string for block in block_list)]
+    fltr_train_labels = [string for string in train_labels if not any(block in string for block in block_list)]
+
     data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
-                  zip(train_images, train_labels)]  # 注意到data_dicts是一个数组
+                  zip(fltr_train_images, fltr_train_labels)]  # 注意到data_dicts是一个数组
 
     # 拆分成train和val
     # validation_files = random.sample(data_dicts, round(0.3 * len(data_dicts)))

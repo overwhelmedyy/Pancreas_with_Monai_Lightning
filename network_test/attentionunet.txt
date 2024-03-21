@@ -1,0 +1,281 @@
+AttentionUnet(
+  (model): Sequential(
+    (0): ConvBlock(
+      (conv): Sequential(
+        (0): Convolution(
+          (conv): Conv3d(1, 16, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+          (adn): ADN(
+            (N): BatchNorm3d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (D): Dropout(p=0.0, inplace=False)
+            (A): ReLU()
+          )
+        )
+        (1): Convolution(
+          (conv): Conv3d(16, 16, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+          (adn): ADN(
+            (N): BatchNorm3d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (D): Dropout(p=0.0, inplace=False)
+            (A): ReLU()
+          )
+        )
+      )
+    )
+    (1): AttentionLayer(
+      (attention): AttentionBlock(
+        (W_g): Sequential(
+          (0): Convolution(
+            (conv): Conv3d(16, 8, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+          )
+          (1): BatchNorm3d(8, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+        (W_x): Sequential(
+          (0): Convolution(
+            (conv): Conv3d(16, 8, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+          )
+          (1): BatchNorm3d(8, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+        (psi): Sequential(
+          (0): Convolution(
+            (conv): Conv3d(8, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+          )
+          (1): BatchNorm3d(1, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+          (2): Sigmoid()
+        )
+        (relu): ReLU()
+      )
+      (upconv): UpConv(
+        (up): Convolution(
+          (conv): ConvTranspose3d(32, 16, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1), output_padding=(1, 1, 1))
+          (adn): ADN(
+            (N): BatchNorm3d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            (D): Dropout(p=0.0, inplace=False)
+            (A): ReLU()
+          )
+        )
+      )
+      (merge): Convolution(
+        (conv): Conv3d(32, 16, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+        (adn): ADN(
+          (N): InstanceNorm3d(16, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+          (D): Dropout(p=0.0, inplace=False)
+          (A): PReLU(num_parameters=1)
+        )
+      )
+      (submodule): Sequential(
+        (0): ConvBlock(
+          (conv): Sequential(
+            (0): Convolution(
+              (conv): Conv3d(16, 32, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+              (adn): ADN(
+                (N): BatchNorm3d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                (D): Dropout(p=0.0, inplace=False)
+                (A): ReLU()
+              )
+            )
+            (1): Convolution(
+              (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+              (adn): ADN(
+                (N): BatchNorm3d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                (D): Dropout(p=0.0, inplace=False)
+                (A): ReLU()
+              )
+            )
+          )
+        )
+        (1): AttentionLayer(
+          (attention): AttentionBlock(
+            (W_g): Sequential(
+              (0): Convolution(
+                (conv): Conv3d(32, 16, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+              )
+              (1): BatchNorm3d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (W_x): Sequential(
+              (0): Convolution(
+                (conv): Conv3d(32, 16, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+              )
+              (1): BatchNorm3d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (psi): Sequential(
+              (0): Convolution(
+                (conv): Conv3d(16, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+              )
+              (1): BatchNorm3d(1, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              (2): Sigmoid()
+            )
+            (relu): ReLU()
+          )
+          (upconv): UpConv(
+            (up): Convolution(
+              (conv): ConvTranspose3d(64, 32, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1), output_padding=(1, 1, 1))
+              (adn): ADN(
+                (N): BatchNorm3d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                (D): Dropout(p=0.0, inplace=False)
+                (A): ReLU()
+              )
+            )
+          )
+          (merge): Convolution(
+            (conv): Conv3d(64, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+            (adn): ADN(
+              (N): InstanceNorm3d(32, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+              (D): Dropout(p=0.0, inplace=False)
+              (A): PReLU(num_parameters=1)
+            )
+          )
+          (submodule): Sequential(
+            (0): ConvBlock(
+              (conv): Sequential(
+                (0): Convolution(
+                  (conv): Conv3d(32, 64, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+                  (adn): ADN(
+                    (N): BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                    (D): Dropout(p=0.0, inplace=False)
+                    (A): ReLU()
+                  )
+                )
+                (1): Convolution(
+                  (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+                  (adn): ADN(
+                    (N): BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                    (D): Dropout(p=0.0, inplace=False)
+                    (A): ReLU()
+                  )
+                )
+              )
+            )
+            (1): AttentionLayer(
+              (attention): AttentionBlock(
+                (W_g): Sequential(
+                  (0): Convolution(
+                    (conv): Conv3d(64, 32, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+                  )
+                  (1): BatchNorm3d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                )
+                (W_x): Sequential(
+                  (0): Convolution(
+                    (conv): Conv3d(64, 32, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+                  )
+                  (1): BatchNorm3d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                )
+                (psi): Sequential(
+                  (0): Convolution(
+                    (conv): Conv3d(32, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+                  )
+                  (1): BatchNorm3d(1, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                  (2): Sigmoid()
+                )
+                (relu): ReLU()
+              )
+              (upconv): UpConv(
+                (up): Convolution(
+                  (conv): ConvTranspose3d(128, 64, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1), output_padding=(1, 1, 1))
+                  (adn): ADN(
+                    (N): BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                    (D): Dropout(p=0.0, inplace=False)
+                    (A): ReLU()
+                  )
+                )
+              )
+              (merge): Convolution(
+                (conv): Conv3d(128, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+                (adn): ADN(
+                  (N): InstanceNorm3d(64, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                  (D): Dropout(p=0.0, inplace=False)
+                  (A): PReLU(num_parameters=1)
+                )
+              )
+              (submodule): Sequential(
+                (0): ConvBlock(
+                  (conv): Sequential(
+                    (0): Convolution(
+                      (conv): Conv3d(64, 128, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+                      (adn): ADN(
+                        (N): BatchNorm3d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                        (D): Dropout(p=0.0, inplace=False)
+                        (A): ReLU()
+                      )
+                    )
+                    (1): Convolution(
+                      (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+                      (adn): ADN(
+                        (N): BatchNorm3d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                        (D): Dropout(p=0.0, inplace=False)
+                        (A): ReLU()
+                      )
+                    )
+                  )
+                )
+                (1): AttentionLayer(
+                  (attention): AttentionBlock(
+                    (W_g): Sequential(
+                      (0): Convolution(
+                        (conv): Conv3d(128, 64, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+                      )
+                      (1): BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                    )
+                    (W_x): Sequential(
+                      (0): Convolution(
+                        (conv): Conv3d(128, 64, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+                      )
+                      (1): BatchNorm3d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                    )
+                    (psi): Sequential(
+                      (0): Convolution(
+                        (conv): Conv3d(64, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+                      )
+                      (1): BatchNorm3d(1, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                      (2): Sigmoid()
+                    )
+                    (relu): ReLU()
+                  )
+                  (upconv): UpConv(
+                    (up): Convolution(
+                      (conv): ConvTranspose3d(256, 128, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1), output_padding=(1, 1, 1))
+                      (adn): ADN(
+                        (N): BatchNorm3d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                        (D): Dropout(p=0.0, inplace=False)
+                        (A): ReLU()
+                      )
+                    )
+                  )
+                  (merge): Convolution(
+                    (conv): Conv3d(256, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+                    (adn): ADN(
+                      (N): InstanceNorm3d(128, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False)
+                      (D): Dropout(p=0.0, inplace=False)
+                      (A): PReLU(num_parameters=1)
+                    )
+                  )
+                  (submodule): ConvBlock(
+                    (conv): Sequential(
+                      (0): Convolution(
+                        (conv): Conv3d(128, 256, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+                        (adn): ADN(
+                          (N): BatchNorm3d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                          (D): Dropout(p=0.0, inplace=False)
+                          (A): ReLU()
+                        )
+                      )
+                      (1): Convolution(
+                        (conv): Conv3d(256, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1))
+                        (adn): ADN(
+                          (N): BatchNorm3d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+                          (D): Dropout(p=0.0, inplace=False)
+                          (A): ReLU()
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+    (2): Convolution(
+      (conv): Conv3d(16, 2, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+    )
+  )
+)

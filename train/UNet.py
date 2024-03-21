@@ -80,6 +80,9 @@ class Net(lightning.LightningModule):
         # set up the correct data path
         train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
         train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
+
+        # filtered_list = [string for string in original_list if any(block in string for block in block_list)]
+        
         data_dicts = [
             {"image": image_name, "label": label_name} for image_name, label_name in zip(train_images, train_labels)
         ]  # 注意到data_dicts是一个数组
