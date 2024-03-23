@@ -12,21 +12,8 @@ from matplotlib import pyplot as plt
 import torch
 
 from monai.transforms import (
-    AsDiscrete,
-    EnsureChannelFirstd,
     Compose,
-    CropForegroundd,
-    LoadImaged,
-    Orientationd,
-    RandCropByPosNegLabeld,
-    ScaleIntensityRanged,
-    Spacingd,
-    EnsureType,
-    RandAffined,
-    RandRotated,
-    RandFlipd,
-    Rand3DElasticd,
-    ResizeWithPadOrCropd, ScaleIntensityRange, CropForeground
+    ScaleIntensityRange,
 )
 
 task_name = "Task01_pancreas"
@@ -46,7 +33,6 @@ preprocess_transforms_img = Compose(
     ]
 )
 
-
 train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
 train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
 data_dicts = [
@@ -54,8 +40,8 @@ data_dicts = [
 ]  # 注意到data_dicts是一个数组
 
 origin = (0, 0, 0)
-spacing = (1.5, 1.5, 3)
-direction = (1, 0, 0, 0, 1, 0, 0, 0, 1)
+spacing = (2.6, 2.6, 3)
+direction =(1, 0, 0, 0, 1, 0, 0, 0, 1)
 
 for _, i in tqdm(enumerate(data_dicts)):
     image = sitk.ReadImage(i["image"])
@@ -78,21 +64,21 @@ for _, i in tqdm(enumerate(data_dicts)):
     start_slice = start_slice - expand_slice if start_slice - expand_slice > 0 else 0
     end_slice = end_slice + expand_slice if end_slice + expand_slice <= img_proc.shape[0] else img_proc.shape[0]-1
 
-    img_proc_z = img_proc[start_slice:end_slice + 1, :, :]  # 128:256
+    img_proc_z = img_proc[start_slice:end_slice + 1, :, :]
     label_proc_z = label_proc[start_slice:end_slice + 1, :, :]
 
-    img_output = sitk.GetImageFromArray(img_proc_z)
+    img_output = sitk.GetImageFromArray(img_proc)
     img_output.SetOrigin(origin)
     img_output.SetSpacing(spacing)
     img_output.SetDirection(direction)
 
-    label_output = sitk.GetImageFromArray(label_proc_z)
+    label_output = sitk.GetImageFromArray(label_proc)
     label_output.SetOrigin(origin)
     label_output.SetSpacing(spacing)
     label_output.SetDirection(direction)
 
-    sitk.WriteImage(img_output, os.path.join(data_dir, "img_proc",f"{_+2:04d}.nii.gz"))
-    sitk.WriteImage(label_output, os.path.join(data_dir, "pancreas_seg_proc",f"{_+2:04d}.nii.gz"))
+    sitk.WriteImage(img_output, os.path.join(data_dir, "img_proc",f"img_{_:04d}.nii.gz"))
+    sitk.WriteImage(label_output, os.path.join(data_dir, "pancreas_seg_proc",f"pancreas_seg_{_:04d}.nii.gz"))
 
 
 

@@ -7,7 +7,7 @@ from torch.hub import tqdm
 import glob
 import os
 import random
-
+from UXNet_3D.networks.UXNet_3D.network_backbone import UXNET
 import lightning
 import numpy as np
 import torch
@@ -18,8 +18,10 @@ from monai.inferers import sliding_window_inference
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
 from monai.networks.layers import Norm
-from monai.networks.nets import UNet
+from monai.networks.nets import UNet, SwinUNETR
 from monai.transforms import (
+    EnsureChannelFirstd,
+    AddCoordinateChannelsDict,
     AsDiscrete,
     EnsureChannelFirstd,
     Compose,
@@ -39,29 +41,32 @@ persistent_cache = os.path.join(data_dir, "persistent_cache")
 tensorboard_dir = os.path.join("../runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
-modulepth = r"runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt"
+modulepth = r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\UNet\version_60\checkpoints\epoch=939-step=15980.ckpt"
 criterion_name = "DiceMetric"
 
 import re
 
 # Define the pattern using regular expression
-pattern = r'runs/Task01_pancreas/(\w+)/(\w+_\d+)/checkpoints'
-
-# Use the search function to find the pattern in the input string
-match = re.search(pattern, modulepth)
-
-# Check if a match is found
-assert match, "module pth do not contain the pattern"
+# pattern = r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\(\\w+)\(\\w+_\\d+)\checkpoints"
+#
+# # Use the search function to find the pattern in the input string
+# match = re.search(pattern, modulepth)
+#
+# # Check if a match is found
+# assert match, "module pth do not contain the pattern"
     # Extract the matched groups
-network_name = match.group(1)
-version_number = match.group(2)
+# network_name = match.group(1)
+# version_number = match.group(2)
+
+network_name = r"SwinUNETR"
+version_number = r"version_6"
 
 args = argparse.Namespace(
     no_cuda=False,  # disables CUDA training
     epochs=10,  # number of epochs (default : 10)
     lr=1e-2,  # base learning rate (default : 0.01)
     weight_decay=3e-2,  # weight decay value (default : 0.03)
-    batch_size=8,  # batch size (default : 4)
+    batch_size=1,  # batch size (default : 4)
     dry_run=False  # quickly check a single pass
 )
 
@@ -93,7 +98,7 @@ class PlainVal:
             images, labels = data["image"], data["label"]
             images, labels = images.to(self.device), labels.to(self.device)
 
-            # logits = sliding_window_inference(images, roi_size=[160,160,160], sw_batch_size=4, predictor=self.model)
+            # logits = sliding_window_inference(images, roi_size=[60,60,60], sw_batch_size=1, predictor=self.model)
             logits = self.model(images)
             logits = [self.post_pred(i) for i in decollate_batch(logits)]
             labels = [self.post_label(i) for i in decollate_batch(labels)]
@@ -115,8 +120,8 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # 读数据的名字
-    train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
+    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "*.nii.gz")))
+    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "*.nii.gz")))
 
     fltr_train_images = [string for string in train_images if not any(block in string for block in block_list)]
     fltr_train_labels = [string for string in train_labels if not any(block in string for block in block_list)]
@@ -124,6 +129,7 @@ def main():
     data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
                   zip(fltr_train_images, fltr_train_labels)]  # 注意到data_dicts是一个数组
 
+    data_dicts = random.sample(data_dicts, round(0.25 * len(data_dicts)))
     # 拆分成train和val
     # validation_files = random.sample(data_dicts, round(0.3 * len(data_dicts)))
 
@@ -134,52 +140,53 @@ def main():
         [
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
-            # LabelToMaskd(keys=['label'], select_labels=[0,2]),
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            Spacingd(
-                keys=["image", "label"],
-                pixdim=(1.5, 1.5, 2.0),
-                mode=("bilinear", "nearest"),
-            ),
-            ScaleIntensityRanged(
-                keys=["image"],
-                a_min=-1024,
-                a_max=2976,
-                b_min=0.0,
-                b_max=1.0,
-                clip=True,
-            ),
-            CropForegroundd(keys=["image", "label"], source_key="image"),
             RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
-                spatial_size=(160, 160, 160),
+                spatial_size=(96, 96, 96),
                 pos=1,
                 neg=1,
                 num_samples=4,
                 image_key="image",
                 image_threshold=0,
-                allow_smaller=True
+                # allow_smaller=True
             ),
-            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(160, 160, 160))
+            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(96, 96, 96))
         ]
     )
 
-    validation_dataset = PersistentDataset(data=validation_files, transform=val_transforms, cache_dir=persistent_cache)
+    validation_dataset = CacheDataset(data=validation_files, transform=val_transforms)
     valid_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True,
                               collate_fn=pad_list_data_collate, num_workers=4)
 
-    model = UNet(
-        spatial_dims=3,
-        in_channels=1,
-        out_channels=2,
-        channels=(16, 32, 64, 128, 256),
-        strides=(2, 2, 2, 2),
-        num_res_units=2,
-        norm=Norm.BATCH,
-    )
-    ckpt = torch.load(modulepth)
+    # model = UNet(
+    #     spatial_dims=3,
+    #     in_channels=1,
+    #     out_channels=2,
+    #     channels=(16, 32, 64, 128, 256),
+    #     strides=(2, 2, 2, 2),
+    #     num_res_units=2,
+    #     norm=Norm.BATCH,
+    # )
 
+    # model = UXNET(
+    #     in_chans=1,
+    #     out_chans=2,
+    #     depths=[2, 2, 2, 2],
+    #     feat_size=[48, 96, 192, 384],
+    #     drop_path_rate=0,
+    #     layer_scale_init_value=1e-6,
+    #     spatial_dims=3,
+    # ).to(device)
+
+    model = SwinUNETR(
+            spatial_dims=3,
+            in_channels=1,
+            out_channels=2,
+            img_size=(96, 96, 96)
+        ).to(device)
+
+    ckpt = torch.load(r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinUNETR\version_16\checkpoints\epoch=24-step=1800.ckpt")
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
         if key.startswith("_model."):
@@ -199,7 +206,7 @@ def write_record():
         now = datetime.datetime.now()
         instant_time = now.strftime("%Y-%m-%d\n"
                                     "%H:%M:%S")
-        wb = load_workbook(f"validation_results/{network_name}.xlsx")
+        wb = load_workbook(fr"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\validation_results\{network_name}.xlsx")
 
         # Check if the sheet exists
         if network_name in wb.sheetnames:
@@ -209,6 +216,7 @@ def write_record():
             # If the sheet does not exist, create it
             sheet = wb.create_sheet(network_name)
         ws = wb.active
+
         column = 1
         while ws.cell(1, column).value is not None:
             column += 2
@@ -220,7 +228,8 @@ def write_record():
             sheet.cell(row=i + 3, column=column,
                        value=mean_dice)  # append() expects a list, even if it's a single element
         # Save the workbook to a new xlsx file
-        wb.save(f"validation_files/{network_name}.xlsx")
+        sheet.cell(row=len(all)+3, column=column, value=np.mean(all))
+        wb.save(fr"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\validation_results\{network_name}.xlsx")
         wb.close()
 
 
@@ -234,5 +243,4 @@ if __name__ == "__main__":
     atexit.register(write_record)
 
     main()
-    write_record()
 

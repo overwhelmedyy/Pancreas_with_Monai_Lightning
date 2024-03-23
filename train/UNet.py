@@ -23,7 +23,12 @@ from monai.transforms import (
     RandCropByPosNegLabeld,
     ScaleIntensityRanged,
     Spacingd,
-    EnsureType, RandAffined, RandRotated, RandFlipd, Rand3DElasticd, ResizeWithPadOrCropd
+    EnsureType,
+    RandAffined,
+    RandRotated,
+    RandFlipd,
+    Rand3DElasticd,
+    ResizeWithPadOrCropd
 )
 from monai.utils import set_determinism
 
@@ -44,6 +49,7 @@ tensorboard_logger = TensorBoardLogger(tensorboard_dir, name=network_name)
 train_batch_size = 8
 val_batch_size = 8
 learning_rate = 5e-4
+
 class Net(lightning.LightningModule):
     def __init__(self, learning_rate, tr_bs, val_bs):
         super().__init__()
@@ -78,8 +84,8 @@ class Net(lightning.LightningModule):
 
     def prepare_data(self):
         # set up the correct data path
-        train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
-        train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
+        train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "*.nii.gz")))
+        train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "*.nii.gz")))
 
         # filtered_list = [string for string in original_list if any(block in string for block in block_list)]
         
@@ -97,27 +103,27 @@ class Net(lightning.LightningModule):
         train_transforms = Compose(
             [
                 LoadImaged(keys=["image", "label"]),
-                EnsureChannelFirstd(keys=["image", "label"]),
-                # LabelToMaskd(keys=['label'],select_labels=[0,2]),
-                Orientationd(keys=["image", "label"], axcodes="RAS"),
-                Spacingd(
-                    keys=["image", "label"],
-                    pixdim=(1.5, 1.5, 2.0),
-                    mode=("bilinear", "nearest"),
-                ),
-                ScaleIntensityRanged(
-                    keys=["image"],
-                    a_min=-1024,
-                    a_max=2976,
-                    b_min=0.0,
-                    b_max=1.0,
-                    clip=True,
-                ),
-                CropForegroundd(keys=["image", "label"], source_key="image"),
-                # randomly crop out patch samples from
-                # big image based on pos / neg ratio
-                # the image centers of negative samples
-                # must be in valid image area
+                # EnsureChannelFirstd(keys=["image", "label"]),
+                # # LabelToMaskd(keys=['label'],select_labels=[0,2]),
+                # Orientationd(keys=["image", "label"], axcodes="RAS"),
+                # Spacingd(
+                #     keys=["image", "label"],
+                #     pixdim=(1.5, 1.5, 2.0),
+                #     mode=("bilinear", "nearest"),
+                # ),
+                # ScaleIntensityRanged(
+                #     keys=["image"],
+                #     a_min=-1024,
+                #     a_max=2976,
+                #     b_min=0.0,
+                #     b_max=1.0,
+                #     clip=True,
+                # ),
+                # CropForegroundd(keys=["image", "label"], source_key="image"),
+                # # randomly crop out patch samples from
+                # # big image based on pos / neg ratio
+                # # the image centers of negative samples
+                # # must be in valid image area
                 RandCropByPosNegLabeld(
                     keys=["image", "label"],
                     label_key="label",
@@ -129,7 +135,6 @@ class Net(lightning.LightningModule):
                     # image_key="image",
                     # image_threshold=0,
                 ),
-
                 RandAffined(
                     keys=['image', 'label'],
                     mode=('bilinear', 'nearest'),
@@ -168,23 +173,23 @@ class Net(lightning.LightningModule):
         val_transforms = Compose(
             [
                 LoadImaged(keys=["image", "label"]),
-                EnsureChannelFirstd(keys=["image", "label"]),
-                # LabelToMaskd(keys=['label'], select_labels=[0,2]),
-                Orientationd(keys=["image", "label"], axcodes="RAS"),
-                Spacingd(
-                    keys=["image", "label"],
-                    pixdim=(1.5, 1.5, 2.0),
-                    mode=("bilinear", "nearest"),
-                ),
-                ScaleIntensityRanged(
-                    keys=["image"],
-                    a_min=-1024,
-                    a_max=2976,
-                    b_min=0.0,
-                    b_max=1.0,
-                    clip=True,
-                ),
-                CropForegroundd(keys=["image", "label"], source_key="image"),
+                # EnsureChannelFirstd(keys=["image", "label"]),
+                # # LabelToMaskd(keys=['label'], select_labels=[0,2]),
+                # Orientationd(keys=["image", "label"], axcodes="RAS"),
+                # Spacingd(
+                #     keys=["image", "label"],
+                #     pixdim=(1.5, 1.5, 2.0),
+                #     mode=("bilinear", "nearest"),
+                # ),
+                # ScaleIntensityRanged(
+                #     keys=["image"],
+                #     a_min=-1024,
+                #     a_max=2976,
+                #     b_min=0.0,
+                #     b_max=1.0,
+                #     clip=True,
+                # ),
+                # CropForegroundd(keys=["image", "label"], source_key="image"),
 
                 RandCropByPosNegLabeld(
                     keys=["image", "label"],
@@ -226,8 +231,7 @@ class Net(lightning.LightningModule):
             shuffle=True,
             num_workers=4,
             persistent_workers=True,
-            collate_fn=pad_list_data_collate
-# 把每个batch的list of data合并到一个list中
+            collate_fn=pad_list_data_collate # 把每个batch的list of data合并到一个list中
         )
         return train_loader
 
@@ -254,15 +258,10 @@ class Net(lightning.LightningModule):
         self.log("train_loss", loss.item(), prog_bar=True, logger=True, on_epoch=True)
         return {"loss": loss, "log": tensorboard_logs}
 
-    # def on_train_epoch_end(self):
-    #     for name,para in self.named_parameters():
-    #         self.tb_logger.add_histogram(name,para,self.current_epoch)
-
     def validation_step(self, batch, batch_idx):
         images, labels = batch["image"], batch["label"]
         self.tb_logger.add_text("label shape", f"{labels[0].shape}")
         roi_size = (160,160,160)
-
         outputs = sliding_window_inference(images, roi_size,sw_batch_size=8, predictor=self.forward)
         loss = self.loss_function(outputs, labels)
         outputs = [self.post_pred(i) for i in decollate_batch(outputs)]
@@ -316,7 +315,7 @@ if __name__ == "__main__":
         num_sanity_val_steps=None
     )
 
-    module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_10/checkpoints/epoch=889-step=59630.ckpt",
+    module_resume = Net.load_from_checkpoint(r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\UNet\version_60\checkpoints\epoch=939-step=15980.ckpt",
                                              learning_rate=learning_rate,
                                              tr_bs=train_batch_size,
                                              val_bs=val_batch_size)
