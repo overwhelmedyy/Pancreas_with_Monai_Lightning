@@ -53,6 +53,7 @@ os.makedirs(ckpt_dir, exist_ok=True)
 args = argparse.Namespace(
     no_cuda=False,                  # disables CUDA training
     epochs=10,                      # number of epochs (default : 10)
+    val_every_n_epoch=5,              # validate every epoch (default : 1)
     lr=1e-2,                        # base learning rate (default : 0.01)
     weight_decay=3e-3,              # weight decay value (default : 0.03)
     batch_size=1,                   # batch size (default : 4)
@@ -121,14 +122,16 @@ class TrainEval:
         best_train_loss = np.inf
         for i in range(self.epoch):
             train_loss = self.train_fn(i)
-            val_loss = self.eval_fn(i)
 
-            if val_loss < best_valid_loss:
+            if i //self.args.val_every_n_epoch  == 0:
+                val_loss = self.eval_fn(i)
 
-                torch.save(self.model.state_dict(), ckpt_dir + f"/best_model_{i}epoch.pth")
-                print("Saved Best Weights")
-                best_valid_loss = val_loss
-                best_train_loss = train_loss
+                if val_loss < best_valid_loss:
+
+                    torch.save(self.model.state_dict(), ckpt_dir + f"/best_model_{i}epoch.pth")
+                    print("Saved Best Weights")
+                    best_valid_loss = val_loss
+                    best_train_loss = train_loss
         print(f"Training Loss : {best_train_loss}")
         print(f"Valid Loss : {best_valid_loss}")
 
@@ -164,27 +167,27 @@ def main():
     train_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
-            EnsureChannelFirstd(keys=["image", "label"]),
-            # LabelToMaskd(keys=['label'],select_labels=[0,2]),
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            Spacingd(
-                keys=["image", "label"],
-                pixdim=(1.5, 1.5, 2.0),
-                mode=("bilinear", "nearest"),
-            ),
-            ScaleIntensityRanged(
-                keys=["image"],
-                a_min=-1024,
-                a_max=2976,
-                b_min=0.0,
-                b_max=1.0,
-                clip=True,
-            ),
-            CropForegroundd(keys=["image", "label"], source_key="image"),
-            # randomly crop out patch samples from
-            # big image based on pos / neg ratio
-            # the image centers of negative samples
-            # must be in valid image area
+            # EnsureChannelFirstd(keys=["image", "label"]),
+            # # LabelToMaskd(keys=['label'],select_labels=[0,2]),
+            # Orientationd(keys=["image", "label"], axcodes="RAS"),
+            # Spacingd(
+            #     keys=["image", "label"],
+            #     pixdim=(1.5, 1.5, 2.0),
+            #     mode=("bilinear", "nearest"),
+            # ),
+            # ScaleIntensityRanged(
+            #     keys=["image"],
+            #     a_min=-1024,
+            #     a_max=2976,
+            #     b_min=0.0,
+            #     b_max=1.0,
+            #     clip=True,
+            # ),
+            # CropForegroundd(keys=["image", "label"], source_key="image"),
+            # # randomly crop out patch samples from
+            # # big image based on pos / neg ratio
+            # # the image centers of negative samples
+            # # must be in valid image area
             RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
@@ -199,7 +202,7 @@ def main():
             RandAffined(
                 keys=['image', 'label'],
                 mode=('bilinear', 'nearest'),
-                prob=1.0,
+                prob=0.3,
                 spatial_size=(96, 96, 96),
                 rotate_range=(0, 0, np.pi / 15),
                 scale_range=(0.1, 0.1, 0.1)),
@@ -209,48 +212,39 @@ def main():
                 range_x=np.pi / 4,
                 range_y=np.pi / 4,
                 range_z=np.pi / 4,
-                prob=0.4,
+                prob=0.3,
                 keep_size=True
             ),
             RandFlipd(
                 keys=['image', 'label'],
-                prob=0.5
+                prob=0.3
             ),
-            Rand3DElasticd(
-                keys=['image', 'label'],
-                sigma_range=(5, 8),
-                magnitude_range=(100, 200),
-                prob=0.5,
-                rotate_range=(0, 0, np.pi / 15),
-                scale_range=(0.2, 0.2, 0.2),
-                spatial_size=(96, 96, 96),
-                mode=('bilinear', 'nearest'))
         ]
     )
     val_transforms = Compose(
         [
             LoadImaged(keys=["image", "label"]),
-            EnsureChannelFirstd(keys=["image", "label"]),
-            # LabelToMaskd(keys=['label'], select_labels=[0,2]),
-            Orientationd(keys=["image", "label"], axcodes="RAS"),
-            Spacingd(
-                keys=["image", "label"],
-                pixdim=(1.5, 1.5, 2.0),
-                mode=("bilinear", "nearest"),
-            ),
-            ScaleIntensityRanged(
-                keys=["image"],
-                a_min=-1024,
-                a_max=2976,
-                b_min=0.0,
-                b_max=1.0,
-                clip=True,
-            ),
-            CropForegroundd(keys=["image", "label"], source_key="image"),
+            # EnsureChannelFirstd(keys=["image", "label"]),
+            # # LabelToMaskd(keys=['label'], select_labels=[0,2]),
+            # Orientationd(keys=["image", "label"], axcodes="RAS"),
+            # Spacingd(
+            #     keys=["image", "label"],
+            #     pixdim=(1.5, 1.5, 2.0),
+            #     mode=("bilinear", "nearest"),
+            # ),
+            # ScaleIntensityRanged(
+            #     keys=["image"],
+            #     a_min=-1024,
+            #     a_max=2976,
+            #     b_min=0.0,
+            #     b_max=1.0,
+            #     clip=True,
+            # ),
+            # CropForegroundd(keys=["image", "label"], source_key="image"),
             RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
-                spatial_size=(160, 160, 160),
+                spatial_size=(96, 96, 96),
                 pos=1,
                 neg=1,
                 num_samples=4,
@@ -258,12 +252,12 @@ def main():
                 image_threshold=0,
                 allow_smaller=True
             ),
-            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(160, 160, 160))
+            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(96, 96, 96))
         ]
     )
 
-    train_dataset = PersistentDataset(data=train_files, transform=train_transforms, cache_dir=persistent_cache)
-    valid_dataset = PersistentDataset(data=val_files, transform=val_transforms,cache_dir=persistent_cache)
+    train_dataset = CacheDataset(data=train_files, transform=train_transforms)
+    valid_dataset = CacheDataset(data=val_files, transform=val_transforms)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
     valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=True, num_workers=4, collate_fn=pad_list_data_collate)
 
