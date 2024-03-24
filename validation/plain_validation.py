@@ -94,16 +94,17 @@ class PlainVal:
         total_loss = 0.0
         tk = tqdm(self.val_dataloader, desc="EPOCH" + "[VALID]" + str(current_epoch + 1) + "/" + str(self.epoch))
 
-        for t, data in enumerate(tk):
-            images, labels = data["image"], data["label"]
-            images, labels = images.to(self.device), labels.to(self.device)
+        with torch.no_grad():
+            for t, data in enumerate(tk):
+                images, labels = data["image"], data["label"]
+                images, labels = images.to(self.device), labels.to(self.device)
 
-            # logits = sliding_window_inference(images, roi_size=[60,60,60], sw_batch_size=1, predictor=self.model)
-            logits = self.model(images)
-            logits = [self.post_pred(i) for i in decollate_batch(logits)]
-            labels = [self.post_label(i) for i in decollate_batch(labels)]
-            self.criterion(logits, labels)
-            pass
+                # logits = sliding_window_inference(images, roi_size=[60,60,60], sw_batch_size=1, predictor=self.model)
+                logits = self.model(images)
+                logits = [self.post_pred(i) for i in decollate_batch(logits)]
+                labels = [self.post_label(i) for i in decollate_batch(labels)]
+                self.criterion(logits, labels)
+                pass
 
     def valdation(self):
         best_dice_metric = np.inf
@@ -187,6 +188,7 @@ def main():
         ).to(device)
 
     ckpt = torch.load(r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinUNETR\version_16\checkpoints\epoch=24-step=1800.ckpt")
+
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
         if key.startswith("_model."):
@@ -198,6 +200,7 @@ def main():
     new_state_dict.pop("loss_function.class_weight")
     model.load_state_dict(new_state_dict)
     model.to(device)
+
     criterion = DiceMetric(include_background=False, reduction="mean", get_not_nans=False)
 
     PlainVal(args, model, valid_loader, criterion, device).valdation()
