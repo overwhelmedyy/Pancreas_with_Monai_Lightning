@@ -99,7 +99,7 @@ class TrainEval:
             self.optimizer.step()
             total_loss.append(loss.item())
             step_loss.append(loss.item())
-            tk.set_postfix({"train_loss_step": "%4f" % float(round(loss.item()))})
+            tk.set_postfix({"train_loss_step": "%4f" % float(round(loss.item(),3))})
 
             # n个step记录loss
             if self.step % self.args.log_every_n_step == 0:
@@ -138,9 +138,9 @@ class TrainEval:
                 loss = self.criterion(logits, labels)
 
                 total_metric += loss.item()
-                metric = sum(total_metric) / len(total_metric)
-                tb_logger.experiment.add_scalar("val_loss", metric, current_epoch)
-                tk.set_postfix({"Loss": "%4f" % float(metric)})
+                metric = round(sum(total_metric) / len(total_metric), 4)
+                tb_logger.experiment.add_scalar("val_metric", metric, current_epoch)
+                tk.set_postfix({"metric": "%4f" % float(metric)})
                 if self.args.dry_run:
                     break
 
@@ -158,7 +158,7 @@ class TrainEval:
 
             if train_loss < best_train_loss:
                 best_train_loss = train_loss
-                print(f"lowest train Loss={best_train_loss} at epoch{current_epoch}")
+                print(f"lowest train Loss : {best_train_loss} at epochs={current_epoch}")
 
             # 做validation
             if current_epoch // self.args.val_every_n_epoch == 0:
@@ -166,83 +166,15 @@ class TrainEval:
 
                 if val_metric > best_val_metric:
                     best_val_metric = val_metric
-                    print(f"highest val metric={best_val_metric} at epoch{current_epoch}")
+                    print(f"highest val loss={best_val_metric} at epochs={current_epoch}")
 
-            print(f"Epoch {current_epoch} took {(time.time() - start_time) / 60} mins")
+            print(f"Epoch {current_epoch} took {round((time.time() - start_time) / 60, 2)} mins")
 
 
 def main():
     use_cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-
-    # 读数据的名字
-    train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
-    data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
-                  zip(train_images, train_labels)]
-
-    # 拆分成train和val
-    train_files = data_dicts
-    val_files = random.sample(data_dicts, round(0.2 * len(data_dicts)))
-
-    train_transforms = Compose(
-        [
-            LoadImaged(keys=["image", "label"]),
-            RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=(96, 96, 96),
-                pos=1,
-                neg=1,
-                num_samples=4,
-                image_key="image",
-                image_threshold=0,
-            ),
-            RandAffined(
-                keys=['image', 'label'],
-                mode=('bilinear', 'nearest'),
-                prob=0.3,
-                spatial_size=(96, 96, 96),
-                rotate_range=(0, 0, np.pi / 15),
-                scale_range=(0.1, 0.1, 0.1)),
-            RandRotated(
-                keys=['image', 'label'],
-                range_x=np.pi / 4,
-                range_y=np.pi / 4,
-                range_z=np.pi / 4,
-                prob=0.3,
-                keep_size=True
-            ),
-            RandFlipd(
-                keys=['image', 'label'],
-                prob=0.3
-            ),
-        ]
-    )
-    val_transforms = Compose(
-        [
-            LoadImaged(keys=["image", "label"]),
-            RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=(96, 96, 96),
-                pos=1,
-                neg=1,
-                num_samples=4,
-                image_key="image",
-                image_threshold=0,
-                allow_smaller=True
-            ),
-            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(96, 96, 96))
-        ]
-    )
-
-    train_dataset = CacheDataset(data=train_files, transform=train_transforms)
-    valid_dataset = CacheDataset(data=val_files, transform=val_transforms)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
-                              collate_fn=pad_list_data_collate)
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
-                              collate_fn=pad_list_data_collate)
+    device = torch.device("cuda:0")
 
     # model = UNet(
     #         spatial_dims=3,
@@ -263,7 +195,6 @@ def main():
     #     layer_scale_init_value=1e-6,
     #     spatial_dims=3,
     # ).to(device)
-
     model = SwinUNETR(
         spatial_dims=3,
         in_channels=1,
@@ -278,7 +209,129 @@ def main():
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     metric = DiceMetric(include_background=False, reduction="mean")
 
-    TrainEval(args, model, train_loader, valid_loader, optimizer, loss_function, metric, device).train()
+    train_transforms = Compose(
+        [
+            LoadImaged(keys=["image", "label"]),
+            # EnsureChannelFirstd(keys=["image", "label"]),
+            # # LabelToMaskd(keys=['label'],select_labels=[0,2]),
+            # Orientationd(keys=["image", "label"], axcodes="RAS"),
+            # Spacingd(
+            #     keys=["image", "label"],
+            #     pixdim=(1.5, 1.5, 2.0),
+            #     mode=("bilinear", "nearest"),
+            # ),
+            # ScaleIntensityRanged(
+            #     keys=["image"],
+            #     a_min=-1024,
+            #     a_max=2976,
+            #     b_min=0.0,
+            #     b_max=1.0,
+            #     clip=True,
+            # ),
+            # CropForegroundd(keys=["image", "label"], source_key="image"),
+            # # randomly crop out patch samples from
+            # # big image based on pos / neg ratio
+            # # the image centers of negative samples
+            # # must be in valid image area
+            RandCropByPosNegLabeld(
+                keys=["image", "label"],
+                label_key="label",
+                spatial_size=(96, 96, 96),
+                pos=1,
+                neg=1,
+                num_samples=4,
+                image_key="image",
+                image_threshold=0,
+            ),
+
+            RandAffined(
+                keys=['image', 'label'],
+                mode=('bilinear', 'nearest'),
+                prob=0.3,
+                spatial_size=(96, 96, 96),
+                rotate_range=(0, 0, np.pi / 15),
+                scale_range=(0.1, 0.1, 0.1)),
+
+            RandRotated(
+                keys=['image', 'label'],
+                range_x=np.pi / 4,
+                range_y=np.pi / 4,
+                range_z=np.pi / 4,
+                prob=0.3,
+                keep_size=True
+            ),
+            RandFlipd(
+                keys=['image', 'label'],
+                prob=0.3
+            ),
+        ]
+    )
+    val_transforms = Compose(
+        [
+            LoadImaged(keys=["image", "label"]),
+            # EnsureChannelFirstd(keys=["image", "label"]),
+            # # LabelToMaskd(keys=['label'], select_labels=[0,2]),
+            # Orientationd(keys=["image", "label"], axcodes="RAS"),
+            # Spacingd(
+            #     keys=["image", "label"],
+            #     pixdim=(1.5, 1.5, 2.0),
+            #     mode=("bilinear", "nearest"),
+            # ),
+            # ScaleIntensityRanged(
+            #     keys=["image"],
+            #     a_min=-1024,
+            #     a_max=2976,
+            #     b_min=0.0,
+            #     b_max=1.0,
+            #     clip=True,
+            # ),
+            # CropForegroundd(keys=["image", "label"], source_key="image"),
+            RandCropByPosNegLabeld(
+                keys=["image", "label"],
+                label_key="label",
+                spatial_size=(96, 96, 96),
+                pos=1,
+                neg=1,
+                num_samples=4,
+                image_key="image",
+                image_threshold=0,
+                allow_smaller=True
+            ),
+            ResizeWithPadOrCropd(keys=["image", "label"], spatial_size=(96, 96, 96))
+        ]
+    )
+
+    # 读数据的名字
+    images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
+    labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
+
+    kf = KFold(n_splits=5)
+    for i, (train_index, test_index) in enumerate(kf.split(images)):
+        train_images, val_images = images[train_index], images[test_index]
+        train_labels, val_labels = labels[train_index], labels[test_index]
+
+    # data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
+    #               zip(train_images, train_labels)]
+        train_files = [{"image": image_name, "label": label_name} for image_name, label_name in
+                   zip(train_images, train_labels)]
+
+        val_files = [{"image": image_name, "label": label_name} for image_name, label_name in
+                 zip(val_images, val_labels)]
+
+    # 拆分成train和val
+    # train_files = random.sample(data_dicts, round(0.8 * len(data_dicts)))
+    # val_files = [i for i in data_dicts if i not in train_files]
+
+        train_dataset = CacheDataset(data=train_files, transform=train_transforms)
+        valid_dataset = CacheDataset(data=val_files, transform=val_transforms)
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
+                                  collate_fn=pad_list_data_collate)
+        valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
+                                  collate_fn=pad_list_data_collate)
+
+
+
+        TrainEval(args, model, train_loader, valid_loader, optimizer, loss_function, metric, device).train()
 
 
 if __name__ == "__main__":
