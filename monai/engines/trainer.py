@@ -65,7 +65,7 @@ class Trainer(Workflow):
         """
         stats = {
             ESKeys.RANK: self.state.rank,
-            ESKeys.CURRENT_EPOCH: self.state.epoch,
+            ESKeys.CURRENT_EPOCH: self.state.epochs,
             ESKeys.CURRENT_ITERATION: self.state.iteration,
             ESKeys.TOTAL_EPOCHS: self.state.max_epochs,
             ESKeys.TOTAL_ITERATIONS: self.state.epoch_length,
@@ -81,14 +81,14 @@ class SupervisedTrainer(Trainer):
 
     Args:
         device: an object representing the device on which to run.
-        max_epochs: the total epoch number for trainer to run.
+        max_epochs: the total epochs number for trainer to run.
         train_data_loader: Ignite engine use data_loader to run, must be Iterable or torch.DataLoader.
         network: network to train in the trainer, should be regular PyTorch `torch.nn.Module`.
         optimizer: the optimizer associated to the network, should be regular PyTorch optimizer from `torch.optim`
             or its subclass.
         loss_function: the loss function associated to the optimizer, should be regular PyTorch loss,
             which inherit from `torch.nn.modules.loss`.
-        epoch_length: number of iterations for one epoch, default to `len(train_data_loader)`.
+        epoch_length: number of iterations for one epochs, default to `len(train_data_loader)`.
         non_blocking: if True and this copy is between CPU and GPU, the copy may occur asynchronously
             with respect to the host. For other cases, this argument has no effect.
         prepare_batch: function to parse expected data (usually `image`, `label` and other network args)
@@ -102,12 +102,12 @@ class SupervisedTrainer(Trainer):
         postprocessing: execute additional transformation for the model output data.
             Typically, several Tensor based transforms composed by `Compose`.
         key_train_metric: compute metric when every iteration completed, and save average value to
-            engine.state.metrics when epoch completed. key_train_metric is the main metric to compare and save the
+            engine.state.metrics when epochs completed. key_train_metric is the main metric to compare and save the
             checkpoint into files.
         additional_metrics: more Ignite metrics that also attach to Ignite Engine.
         metric_cmp_fn: function to compare current key metric with previous best key metric value,
             it must accept 2 args (current_metric, previous_best) and return a bool result: if `True`, will update
-            `best_metric` and `best_metric_epoch` with current metric and epoch, default to `greater than`.
+            `best_metric` and `best_metric_epoch` with current metric and epochs, default to `greater than`.
         train_handlers: every handler is a set of Ignite Event-Handlers, must have `attach` function, like:
             CheckpointHandler, StatsHandler, etc.
         amp: whether to enable auto-mixed-precision training, default is False.
@@ -249,7 +249,7 @@ class GanTrainer(Trainer):
 
     Args:
         device: an object representing the device on which to run.
-        max_epochs: the total epoch number for engine to run.
+        max_epochs: the total epochs number for engine to run.
         train_data_loader: Core ignite engines uses `DataLoader` for training loop batchdata.
         g_network: generator (G) network architecture.
         g_optimizer: G optimizer function.
@@ -257,7 +257,7 @@ class GanTrainer(Trainer):
         d_network: discriminator (D) network architecture.
         d_optimizer: D optimizer function.
         d_loss_function: D loss function for optimizer.
-        epoch_length: number of iterations for one epoch, default to `len(train_data_loader)`.
+        epoch_length: number of iterations for one epochs, default to `len(train_data_loader)`.
         g_inferer: inference method to execute G model forward. Defaults to ``SimpleInferer()``.
         d_inferer: inference method to execute D model forward. Defaults to ``SimpleInferer()``.
         d_train_steps: number of times to update D with real data minibatch. Defaults to ``1``.
@@ -278,12 +278,12 @@ class GanTrainer(Trainer):
         postprocessing: execute additional transformation for the model output data.
             Typically, several Tensor based transforms composed by `Compose`.
         key_train_metric: compute metric when every iteration completed, and save average value to
-            engine.state.metrics when epoch completed. key_train_metric is the main metric to compare and save the
+            engine.state.metrics when epochs completed. key_train_metric is the main metric to compare and save the
             checkpoint into files.
         additional_metrics: more Ignite metrics that also attach to Ignite Engine.
         metric_cmp_fn: function to compare current key metric with previous best key metric value,
             it must accept 2 args (current_metric, previous_best) and return a bool result: if `True`, will update
-            `best_metric` and `best_metric_epoch` with current metric and epoch, default to `greater than`.
+            `best_metric` and `best_metric_epoch` with current metric and epochs, default to `greater than`.
         train_handlers: every handler is a set of Ignite Event-Handlers, must have `attach` function, like:
             CheckpointHandler, StatsHandler, etc.
         decollate: whether to decollate the batch-first data to a list of data after model computation,
