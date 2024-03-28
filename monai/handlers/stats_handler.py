@@ -38,7 +38,7 @@ class StatsHandler:
     """
     StatsHandler defines a set of Ignite Event-handlers for all the log printing logics.
     It can be used for any Ignite Engine(trainer, validator and evaluator).
-    And it can support logging for epoch level and iteration level with pre-defined loggers.
+    And it can support logging for epochs level and iteration level with pre-defined loggers.
 
     Note that if ``name`` is None, this class will leverage `engine.logger` as the logger, otherwise,
     ``logging.getLogger(name)`` is used. In both cases, it's important to make sure that the logging level is at least
@@ -87,10 +87,10 @@ class StatsHandler:
                 (see https://pytorch.org/ignite/generated/ignite.engine.events.Events.html for details).
                 Event filter function accepts as input engine and event value (iteration) and should return True/False.
                 Event filtering can be helpful to customize iteration logging frequency.
-            epoch_log: whether to log data when epoch completed, default to `True`. ``epoch_log`` can be
+            epoch_log: whether to log data when epochs completed, default to `True`. ``epoch_log`` can be
                 also a function and it will be interpreted as an event filter. See ``iteration_log`` argument for more
                 details.
-            epoch_print_logger: customized callable printer for epoch level logging.
+            epoch_print_logger: customized callable printer for epochs level logging.
                 Must accept parameter "engine", use default printer if None.
             iteration_print_logger: customized callable printer for iteration level logging.
                 Must accept parameter "engine", use default printer if None.
@@ -103,11 +103,11 @@ class StatsHandler:
                 `engine.state` and `output_transform` inherit from the ignite concept:
                 https://pytorch.org/ignite/concepts.html#state, explanation and usage example are in the tutorial:
                 https://github.com/Project-MONAI/tutorials/blob/master/modules/batch_output_transform.ipynb.
-            global_epoch_transform: a callable that is used to customize global epoch number.
-                For example, in evaluation, the evaluator engine might want to print synced epoch number
+            global_epoch_transform: a callable that is used to customize global epochs number.
+                For example, in evaluation, the evaluator engine might want to print synced epochs number
                 with the trainer engine.
             state_attributes: expected attributes from `engine.state`, if provided, will extract them
-                when epoch completed.
+                when epochs completed.
             name: identifier of `logging.logger` to use, if None, defaulting to ``engine.logger``.
             tag_name: when iteration output is a scalar, tag_name is used to print
                 tag_name: scalar_value to logger. Defaults to ``'Loss'``.
@@ -161,8 +161,8 @@ class StatsHandler:
 
     def epoch_completed(self, engine: Engine) -> None:
         """
-        Handler for train or validation/evaluation epoch completed Event.
-        Print epoch level log, default values are from Ignite `engine.state.metrics` dict.
+        Handler for train or validation/evaluation epochs completed Event.
+        Print epochs level log, default values are from Ignite `engine.state.metrics` dict.
 
         Args:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
@@ -203,7 +203,7 @@ class StatsHandler:
 
     def _default_epoch_print(self, engine: Engine) -> None:
         """
-        Execute epoch level log operation.
+        Execute epochs level log operation.
         Default to print the values from Ignite `engine.state.metrics` dict and
         print the values of specified attributes of `engine.state`.
 
@@ -211,7 +211,7 @@ class StatsHandler:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
 
         """
-        current_epoch = self.global_epoch_transform(engine.state.epoch)
+        current_epoch = self.global_epoch_transform(engine.state.epochs)
 
         prints_dict = engine.state.metrics
         if prints_dict is not None and len(prints_dict) > 0:
@@ -229,7 +229,7 @@ class StatsHandler:
         ):
             out_str = f"Key metric: {engine.state.key_metric_name} "
             out_str += f"best value: {engine.state.best_metric} "
-            out_str += f"at epoch: {engine.state.best_metric_epoch}"
+            out_str += f"at epochs: {engine.state.best_metric_epoch}"
             self.logger.info(out_str)
 
         if self.state_attributes is not None and len(self.state_attributes) > 0:
@@ -285,7 +285,7 @@ class StatsHandler:
         current_iteration = engine.state.iteration
         if num_iterations is not None:
             current_iteration = (current_iteration - 1) % num_iterations + 1
-        current_epoch = engine.state.epoch
+        current_epoch = engine.state.epochs
         num_epochs = engine.state.max_epochs
 
         base_str = f"Epoch: {current_epoch}/{num_epochs}, Iter: {current_iteration}/{num_iterations} --"

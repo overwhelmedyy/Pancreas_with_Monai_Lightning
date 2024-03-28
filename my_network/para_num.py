@@ -1,8 +1,8 @@
 from monai.networks.nets import UNETR, SwinUNETR, UNet, attentionunet, AttentionUnet, BasicUNetPlusPlus
-from DUXNet.networks.UXNet_3D.network_backbone import UXNET
+from UXNet_3D.networks.UXNet_3D.network_backbone import UXNET
 from monai.networks.nets import UNETR, SwinUNETR
-from DUXNet.networks.nnFormer.nnFormer_seg import nnFormer
-from DUXNet.networks.TransBTS.TransBTS_downsample8x_skipconnection import TransBTS
+from UXNet_3D.networks.nnFormer.nnFormer_seg import nnFormer
+from UXNet_3D.networks.TransBTS.TransBTS_downsample8x_skipconnection import TransBTS
 
 
 

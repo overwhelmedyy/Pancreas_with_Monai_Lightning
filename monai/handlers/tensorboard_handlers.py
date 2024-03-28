@@ -73,7 +73,7 @@ class TensorBoardStatsHandler(TensorBoardHandler):
     """
     TensorBoardStatsHandler defines a set of Ignite Event-handlers for all the TensorBoard logics.
     It can be used for any Ignite Engine(trainer, validator and evaluator).
-    And it can support both epoch level and iteration level with pre-defined TensorBoard event writer.
+    And it can support both epochs level and iteration level with pre-defined TensorBoard event writer.
     The expected data source is Ignite ``engine.state.output`` and ``engine.state.metrics``.
 
     Default behaviors:
@@ -110,11 +110,11 @@ class TensorBoardStatsHandler(TensorBoardHandler):
                 at which the iteration_event_writer is called. If it is a function, it will be interpreted as an event filter
                 (see https://pytorch.org/ignite/generated/ignite.engine.events.Events.html for details).
                 Event filter function accepts as input engine and event value (iteration) and should return True/False.
-            epoch_log: whether to write data to TensorBoard when epoch completed, default to `True`.
-                ``epoch_log`` can be also a function or int. If it is an int, it will be interpreted as the epoch interval
+            epoch_log: whether to write data to TensorBoard when epochs completed, default to `True`.
+                ``epoch_log`` can be also a function or int. If it is an int, it will be interpreted as the epochs interval
                 at which the epoch_event_writer is called. If it is a function, it will be interpreted as an event filter.
                 See ``iteration_log`` argument for more details.
-            epoch_event_writer: customized callable TensorBoard writer for epoch level.
+            epoch_event_writer: customized callable TensorBoard writer for epochs level.
                 Must accept parameter "engine" and "summary_writer", use default event writer if None.
             iteration_event_writer: customized callable TensorBoard writer for iteration level.
                 Must accept parameter "engine" and "summary_writer", use default event writer if None.
@@ -127,11 +127,11 @@ class TensorBoardStatsHandler(TensorBoardHandler):
                 `engine.state` and `output_transform` inherit from the ignite concept:
                 https://pytorch.org/ignite/concepts.html#state, explanation and usage example are in the tutorial:
                 https://github.com/Project-MONAI/tutorials/blob/master/modules/batch_output_transform.ipynb.
-            global_epoch_transform: a callable that is used to customize global epoch number.
-                For example, in evaluation, the evaluator engine might want to use trainer engines epoch number
-                when plotting epoch vs metric curves.
+            global_epoch_transform: a callable that is used to customize global epochs number.
+                For example, in evaluation, the evaluator engine might want to use trainer engines epochs number
+                when plotting epochs vs metric curves.
             state_attributes: expected attributes from `engine.state`, if provided, will extract them
-                when epoch completed.
+                when epochs completed.
             tag_name: when iteration output is a scalar, tag_name is used to plot, defaults to ``'Loss'``.
         """
 
@@ -170,8 +170,8 @@ class TensorBoardStatsHandler(TensorBoardHandler):
 
     def epoch_completed(self, engine: Engine) -> None:
         """
-        Handler for train or validation/evaluation epoch completed Event.
-        Write epoch level events, default values are from Ignite `engine.state.metrics` dict.
+        Handler for train or validation/evaluation epochs completed Event.
+        Write epochs level events, default values are from Ignite `engine.state.metrics` dict.
 
         Args:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
@@ -215,7 +215,7 @@ class TensorBoardStatsHandler(TensorBoardHandler):
 
     def _default_epoch_writer(self, engine: Engine, writer: SummaryWriter | SummaryWriterX) -> None:
         """
-        Execute epoch level event write operation.
+        Execute epochs level event write operation.
         Default to write the values from Ignite `engine.state.metrics` dict and
         write the values of specified attributes of `engine.state`.
 
@@ -224,7 +224,7 @@ class TensorBoardStatsHandler(TensorBoardHandler):
             writer: TensorBoard or TensorBoardX writer, passed or created in TensorBoardHandler.
 
         """
-        current_epoch = self.global_epoch_transform(engine.state.epoch)
+        current_epoch = self.global_epoch_transform(engine.state.epochs)
         summary_dict = engine.state.metrics
         for name, value in summary_dict.items():
             if is_scalar(value):
@@ -332,7 +332,7 @@ class TensorBoardImageHandler(TensorBoardHandler):
                 default to create a new TensorBoard writer.
             log_dir: if using default SummaryWriter, write logs to this directory, default is `./runs`.
             interval: plot content from engine.state every N epochs or every N iterations, default is 1.
-            epoch_level: plot content from engine.state every N epochs or N iterations. `True` is epoch level,
+            epoch_level: plot content from engine.state every N epochs or N iterations. `True` is epochs level,
                 `False` is iteration level.
             batch_transform: a callable that is used to extract `image` and `label` from `ignite.engine.state.batch`,
                 then construct `(image, label)` pair. for example: if `ignite.engine.state.batch` is `{"image": xxx,
@@ -347,7 +347,7 @@ class TensorBoardImageHandler(TensorBoardHandler):
                 https://pytorch.org/ignite/concepts.html#state, explanation and usage example are in the tutorial:
                 https://github.com/Project-MONAI/tutorials/blob/master/modules/batch_output_transform.ipynb.
             global_iter_transform: a callable that is used to customize global step number for TensorBoard.
-                For example, in evaluation, the evaluator engine needs to know current epoch from trainer.
+                For example, in evaluation, the evaluator engine needs to know current epochs from trainer.
             index: plot which element in a data batch, default is the first element.
             max_channels: number of channels to plot.
             frame_dim: if plotting 3D image as GIF, specify the dimension used as frames,
@@ -389,7 +389,7 @@ class TensorBoardImageHandler(TensorBoardHandler):
                 ``Optional[Union[numpy.ndarray, torch.Tensor]]``.
 
         """
-        step = self.global_iter_transform(engine.state.epoch if self.epoch_level else engine.state.iteration)
+        step = self.global_iter_transform(engine.state.epochs if self.epoch_level else engine.state.iteration)
         show_images = self.batch_transform(engine.state.batch)[0][self.index]
         if isinstance(show_images, torch.Tensor):
             show_images = show_images.detach().cpu().numpy()

@@ -19,12 +19,13 @@ from monai.transforms import (
     Compose, LoadImaged, RandCropByPosNegLabeld,
     RandAffined, RandRotated, RandFlipd, ResizeWithPadOrCropd, EnsureChannelFirstd, EnsureType, AsDiscrete
 )
+from my_network.SwinViT_Upp import SwinViT_Upp
 
 args = argparse.Namespace(
     task_name="Task01_pancreas",
     network_name="SwinUNETR_pytorch",
     countiune_train=True,  # True ot False
-    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinUNETR_pytorch\0324_1911\checkpoint\model_147epochs.pth",
+    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinViT_Upp_pytorch\best260_0.8577467203140259.pth",
     no_cuda=False,  # disables CUDA training
     save_model_every_n_epoch=1,  # save model every epochs (default : 1)
     val_every_n_epoch=5,  # validate every epochs (default : 1)
@@ -209,8 +210,8 @@ def main():
                   zip(train_images, train_labels)]
 
     # 拆分成train和val
-    train_files = data_dicts
-    val_files = random.sample(data_dicts, round(0.2 * len(data_dicts)))
+    train_files = [data_dicts[0]]
+    val_files = random.sample(data_dicts, round(0.01 * len(data_dicts)))
 
     train_transforms = Compose(
         [
@@ -293,12 +294,14 @@ def main():
     #     spatial_dims=3,
     # ).to(device)
 
-    model = SwinUNETR(
-        spatial_dims=3,
-        in_channels=1,
-        out_channels=2,
-        img_size=(64, 64, 64)
-    )
+    # model = SwinUNETR(
+    #     spatial_dims=3,
+    #     in_channels=1,
+    #     out_channels=2,
+    #     img_size=(64, 64, 64)
+    # )
+
+    model = SwinViT_Upp()
 
     # 区分是从0开始还是加载先前训练过的模型
     if args.countiune_train:

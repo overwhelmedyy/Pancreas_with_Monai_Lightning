@@ -143,6 +143,10 @@ class AttentionBlock(nn.Module):
 
         return x * psi
 
+    def para_num(self):
+        return sum([param.nelement() for param in self.parameters()])
+
+
 
 class AttentionLayer(nn.Module):
     def __init__(
@@ -172,7 +176,8 @@ class AttentionLayer(nn.Module):
         self.submodule = submodule
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        fromlower = self.upconv(self.submodule(x))
+        temp = self.submodule(x)
+        fromlower = self.upconv(temp)
         att = self.attention(g=fromlower, x=x)
         att_m: torch.Tensor = self.merge(torch.cat((att, fromlower), dim=1))
         return att_m
@@ -276,3 +281,15 @@ class AttentionUnet(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_m: torch.Tensor = self.model(x)
         return x_m
+
+if __name__ == "__main__":
+    model = AttentionUnet(
+        spatial_dims=3,
+        in_channels=1,
+        out_channels=2,
+        channels=(16, 32, 64, 128, 256),
+        strides=(2, 2, 2, 2),
+    )
+    x = torch.randn(1, 1, 64, 64, 64)
+    y = model(x)
+

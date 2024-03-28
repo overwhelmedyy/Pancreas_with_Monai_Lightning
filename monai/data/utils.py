@@ -1155,7 +1155,7 @@ def partition_dataset(
     Note:
         It also can be used to partition dataset for ranks in distributed training.
         For example, partition dataset before training and use `CacheDataset`, every rank trains with its own data.
-        It can avoid duplicated caching content in each rank, but will not do global shuffle before every epoch:
+        It can avoid duplicated caching content in each rank, but will not do global shuffle before every epochs:
 
         .. code-block:: python
 

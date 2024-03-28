@@ -36,7 +36,7 @@ class ParamSchedulerHandler:
         value_calculator (Union[str,Callable]): Either a string ('linear', 'exponential', 'step' or 'multistep')
          or Callable for custom logic.
         vc_kwargs (Dict): Dictionary that stores the required parameters for the value_calculator.
-        epoch_level (bool): Whether the step is based on epoch or iteration. Defaults to False.
+        epoch_level (bool): Whether the step is based on epochs or iteration. Defaults to False.
         name (Optional[str]): Identifier of logging.logger to use, if None, defaulting to ``engine.logger``.
         event (Optional[str]): Event to which the handler attaches. Defaults to Events.ITERATION_COMPLETED.
     """
@@ -78,7 +78,7 @@ class ParamSchedulerHandler:
 
     def __call__(self, engine: Engine) -> None:
         if self.epoch_level:
-            self._vc_kwargs["current_step"] = engine.state.epoch
+            self._vc_kwargs["current_step"] = engine.state.epochs
         else:
             self._vc_kwargs["current_step"] = engine.state.iteration
 

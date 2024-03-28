@@ -226,7 +226,7 @@ class ConfigParser:
     def update(self, pairs: dict[str, Any]) -> None:
         """
         Set the ``id`` and the corresponding config content in pairs, see also :py:meth:`__setitem__`.
-        For example, ``parser.update({"train::epoch": 100, "train::lr": 0.02})``
+        For example, ``parser.update({"train::epochs": 100, "train::lr": 0.02})``
 
         Args:
             pairs: dictionary of `id` and config pairs.

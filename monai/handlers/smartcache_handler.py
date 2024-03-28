@@ -63,7 +63,7 @@ class SmartCacheHandler:
         self.smartcacher.start()
 
     def epoch_completed(self, engine: Engine) -> None:
-        """Callback for train or validation/evaluation epoch completed Event.
+        """Callback for train or validation/evaluation epochs completed Event.
         Update cache content with replacement data.
 
         Args:

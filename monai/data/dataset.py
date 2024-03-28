@@ -724,7 +724,7 @@ class CacheDataset(Dataset):
             ToTensord()
         ])
 
-    when `transforms` is used in a multi-epoch training pipeline, before the first training epoch,
+    when `transforms` is used in a multi-epochs training pipeline, before the first training epochs,
     this dataset will cache the results up to ``ScaleIntensityRanged``, as
     all non-random transforms `LoadImaged`, `EnsureChannelFirstd`, `Spacingd`, `Orientationd`, `ScaleIntensityRanged`
     can be cached. During training, the dataset will load the cached results and run
@@ -736,7 +736,7 @@ class CacheDataset(Dataset):
 
     Note:
         `CacheDataset` executes non-random transforms and prepares cache content in the main process before
-        the first epoch, then all the subprocesses of DataLoader will read the same cache content in the main process
+        the first epochs, then all the subprocesses of DataLoader will read the same cache content in the main process
         during training. it may take a long time to prepare cache content according to the size of expected cache data.
         So to debug or verify the program before real training, users can set `cache_rate=0.0` or `cache_num=0` to
         temporarily skip caching.
@@ -826,7 +826,7 @@ class CacheDataset(Dataset):
         """
         Set the input data and run deterministic transforms to generate cache content.
 
-        Note: should call this func after an entire epoch and must set `persistent_workers=False`
+        Note: should call this func after an entire epochs and must set `persistent_workers=False`
         in PyTorch DataLoader, because it needs to create new worker processes based on new
         generated cache content.
 
@@ -933,11 +933,11 @@ class CacheDataset(Dataset):
 class SmartCacheDataset(Randomizable, CacheDataset):
     """
     Re-implementation of the SmartCache mechanism in NVIDIA Clara-train SDK.
-    At any time, the cache pool only keeps a subset of the whole dataset. In each epoch, only the items
+    At any time, the cache pool only keeps a subset of the whole dataset. In each epochs, only the items
     in the cache are used for training. This ensures that data needed for training is readily available,
     keeping GPU resources busy. Note that cached items may still have to go through a non-deterministic
     transform sequence before being fed to GPU. At the same time, another thread is preparing replacement
-    items by applying the transform sequence to items not in cache. Once one epoch is completed, Smart
+    items by applying the transform sequence to items not in cache. Once one epochs is completed, Smart
     Cache replaces the same number of items with replacement items.
     Smart Cache uses a simple `running window` algorithm to determine the cache content and replacement items.
     Let N be the configured number of objects in cache; and R be the number of replacement objects (R = ceil(N * r),
@@ -948,19 +948,19 @@ class SmartCacheDataset(Randomizable, CacheDataset):
     for more details, please check: https://pytorch.org/docs/stable/data.html#torch.utils.data.Subset
 
     For example, if we have 5 images: `[image1, image2, image3, image4, image5]`, and `cache_num=4`, `replace_rate=0.25`.
-    so the actual training images cached and replaced for every epoch are as below::
+    so the actual training images cached and replaced for every epochs are as below::
 
-        epoch 1: [image1, image2, image3, image4]
-        epoch 2: [image2, image3, image4, image5]
-        epoch 3: [image3, image4, image5, image1]
-        epoch 3: [image4, image5, image1, image2]
-        epoch N: [image[N % 5] ...]
+        epochs 1: [image1, image2, image3, image4]
+        epochs 2: [image2, image3, image4, image5]
+        epochs 3: [image3, image4, image5, image1]
+        epochs 3: [image4, image5, image1, image2]
+        epochs N: [image[N % 5] ...]
 
     The usage of `SmartCacheDataset` contains 4 steps:
 
-        1. Initialize `SmartCacheDataset` object and cache for the first epoch.
+        1. Initialize `SmartCacheDataset` object and cache for the first epochs.
         2. Call `start()` to run replacement thread in background.
-        3. Call `update_cache()` before every epoch to replace training items.
+        3. Call `update_cache()` before every epochs to replace training items.
         4. Call `shutdown()` when training ends.
 
     During training call `set_data()` to update input data and recompute cache content, note to call
@@ -979,19 +979,19 @@ class SmartCacheDataset(Randomizable, CacheDataset):
     Args:
         data: input data to load and transform to generate dataset for model.
         transform: transforms to execute operations on input data.
-        replace_rate: percentage of the cached items to be replaced in every epoch (default to 0.1).
+        replace_rate: percentage of the cached items to be replaced in every epochs (default to 0.1).
         cache_num: number of items to be cached. Default is `sys.maxsize`.
             will take the minimum of (cache_num, data_length x cache_rate, data_length).
         cache_rate: percentage of cached data in total, default is 1.0 (cache all).
             will take the minimum of (cache_num, data_length x cache_rate, data_length).
-        num_init_workers: the number of worker threads to initialize the cache for first epoch.
+        num_init_workers: the number of worker threads to initialize the cache for first epochs.
             If num_init_workers is None then the number returned by os.cpu_count() is used.
             If a value less than 1 is specified, 1 will be used instead.
-        num_replace_workers: the number of worker threads to prepare the replacement cache for every epoch.
+        num_replace_workers: the number of worker threads to prepare the replacement cache for every epochs.
             If num_replace_workers is None then the number returned by os.cpu_count() is used.
             If a value less than 1 is specified, 1 will be used instead.
-        progress: whether to display a progress bar when caching for the first epoch.
-        shuffle: whether to shuffle the whole data list before preparing the cache content for first epoch.
+        progress: whether to display a progress bar when caching for the first epochs.
+        shuffle: whether to shuffle the whole data list before preparing the cache content for first epochs.
             it will not modify the original input data sequence in-place.
         seed: random seed if shuffle is `True`, default to `0`.
         copy_cache: whether to `deepcopy` the cache content before applying the random transforms,
@@ -1103,7 +1103,7 @@ class SmartCacheDataset(Randomizable, CacheDataset):
 
     def start(self):
         """
-        Start the background thread to replace training items for every epoch.
+        Start the background thread to replace training items for every epochs.
 
         """
         if not self.is_started():
@@ -1120,7 +1120,7 @@ class SmartCacheDataset(Randomizable, CacheDataset):
 
     def _try_update_cache(self):
         """
-        Update the cache items with new replacement for current epoch.
+        Update the cache items with new replacement for current epochs.
 
         """
         with self._update_lock:
@@ -1143,7 +1143,7 @@ class SmartCacheDataset(Randomizable, CacheDataset):
 
     def update_cache(self):
         """
-        Update cache items for current epoch, need to call this function before every epoch.
+        Update cache items for current epochs, need to call this function before every epochs.
         If the cache has been shutdown before, need to restart the `_replace_mgr` thread.
 
         """
@@ -1191,7 +1191,7 @@ class SmartCacheDataset(Randomizable, CacheDataset):
 
     def _compute_replacements(self):
         """
-        Compute expected items for the replacement of next epoch, execute deterministic transforms.
+        Compute expected items for the replacement of next epochs, execute deterministic transforms.
         It can support multi-threads to accelerate the computation progress.
 
         """

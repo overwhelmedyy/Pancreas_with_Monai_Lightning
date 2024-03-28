@@ -145,11 +145,11 @@ class CheckpointLoader:
         # save current max epochs setting in the engine, don't overwrite it if larger than max_epochs in checkpoint
         prior_max_epochs = engine.state.max_epochs
         Checkpoint.load_objects(to_load=self.load_dict, checkpoint=checkpoint, strict=self.strict)
-        if prior_max_epochs is not None and engine.state.epoch > prior_max_epochs:
+        if prior_max_epochs is not None and engine.state.epochs > prior_max_epochs:
             raise ValueError(
-                f"Epoch count ({engine.state.epoch}) in checkpoint is larger than "
+                f"Epoch count ({engine.state.epochs}) in checkpoint is larger than "
                 f"the `engine.state.max_epochs` ({prior_max_epochs}) of engine. To further train from checkpoint, "
-                "construct trainer with `max_epochs` larger than checkpoint's epoch count. "
+                "construct trainer with `max_epochs` larger than checkpoint's epochs count. "
                 "To use checkpoint for inference, no need to load state_dict for the engine."
             )
         engine.state.max_epochs = prior_max_epochs

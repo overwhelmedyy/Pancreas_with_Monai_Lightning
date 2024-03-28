@@ -46,7 +46,7 @@ class MLFlowHandler:
     """
     MLFlowHandler defines a set of Ignite Event-handlers for the MLFlow tracking logics.
     It can be used for any Ignite Engine(trainer, validator and evaluator).
-    And it can track both epoch level and iteration level logging, then MLFlow can store
+    And it can track both epochs level and iteration level logging, then MLFlow can store
     the data and visualize.
     The expected data source is Ignite ``engine.state.output`` and ``engine.state.metrics``.
 
@@ -69,10 +69,10 @@ class MLFlowHandler:
             ``iteration_log`` can be also a function and it will be interpreted as an event filter
             (see https://pytorch.org/ignite/generated/ignite.engine.events.Events.html for details).
             Event filter function accepts as input engine and event value (iteration) and should return True/False.
-        epoch_log: whether to log data to MLFlow when epoch completed, default to `True`.
+        epoch_log: whether to log data to MLFlow when epochs completed, default to `True`.
             ``epoch_log`` can be also a function and it will be interpreted as an event filter.
             See ``iteration_log`` argument for more details.
-        epoch_logger: customized callable logger for epoch level logging with MLFlow.
+        epoch_logger: customized callable logger for epochs level logging with MLFlow.
             Must accept parameter "engine", use default logger if None.
         iteration_logger: customized callable logger for iteration level logging with MLFlow.
             Must accept parameter "engine", use default logger if None.
@@ -92,11 +92,11 @@ class MLFlowHandler:
             `engine.state` and `output_transform` inherit from the ignite concept:
             https://pytorch-ignite.ai/concepts/03-state/, explanation and usage example are in the tutorial:
             https://github.com/Project-MONAI/tutorials/blob/master/modules/batch_output_transform.ipynb.
-        global_epoch_transform: a callable that is used to customize global epoch number.
-            For example, in evaluation, the evaluator engine might want to track synced epoch number
+        global_epoch_transform: a callable that is used to customize global epochs number.
+            For example, in evaluation, the evaluator engine might want to track synced epochs number
             with the trainer engine.
         state_attributes: expected attributes from `engine.state`, if provided, will extract them
-            when epoch completed.
+            when epochs completed.
         tag_name: when iteration output is a scalar, `tag_name` is used to track, defaults to `'Loss'`.
         experiment_name: the experiment name of MLflow, default to `'monai_experiment'`. An experiment can be
             used to record several runs.
@@ -329,8 +329,8 @@ class MLFlowHandler:
 
     def epoch_completed(self, engine: Engine) -> None:
         """
-        Handler for train or validation/evaluation epoch completed Event.
-        Track epoch level log, default values are from Ignite `engine.state.metrics` dict.
+        Handler for train or validation/evaluation epochs completed Event.
+        Track epochs level log, default values are from Ignite `engine.state.metrics` dict.
 
         Args:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
@@ -357,7 +357,7 @@ class MLFlowHandler:
 
     def _default_epoch_log(self, engine: Engine) -> None:
         """
-        Execute epoch level log operation.
+        Execute epochs level log operation.
         Default to track the values from Ignite `engine.state.metrics` dict and
         track the values of specified attributes of `engine.state`.
 
@@ -369,7 +369,7 @@ class MLFlowHandler:
         if not log_dict:
             return
 
-        current_epoch = self.global_epoch_transform(engine.state.epoch)
+        current_epoch = self.global_epoch_transform(engine.state.epochs)
         self._log_metrics(log_dict, step=current_epoch)
 
         if self.state_attributes is not None:

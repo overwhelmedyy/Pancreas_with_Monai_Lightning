@@ -295,7 +295,7 @@ class CumulativeIterationMetric(Cumulative, IterationMetric):
     Base class of cumulative metric which collects metrics on each mini-batch data at the iteration level.
 
     Typically, it computes some intermediate results for each iteration, adds them to the buffers,
-    then the buffer contents could be gathered and aggregated for the final result when epoch completed.
+    then the buffer contents could be gathered and aggregated for the final result when epochs completed.
     Currently,``Cumulative.aggregate()`` and ``IterationMetric._compute_tensor()`` are expected to be implemented.
 
     For example, `MeanDice` inherits this class and the usage is as follows:

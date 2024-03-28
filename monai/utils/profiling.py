@@ -400,7 +400,7 @@ class WorkflowProfiler:
 class ProfileHandler:
     """
     Handler for Ignite Engine classes which measures the time from a start event ton an end event. This can be used to
-    profile epoch, iteration, and other events as defined in `ignite.engine.Events`. This class should be used only
+    profile epochs, iteration, and other events as defined in `ignite.engine.Events`. This class should be used only
     within the context of a profiler object.
 
     Args:

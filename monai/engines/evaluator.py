@@ -45,7 +45,7 @@ class Evaluator(Workflow):
     Args:
         device: an object representing the device on which to run.
         val_data_loader: Ignite engine use data_loader to run, must be Iterable or torch.DataLoader.
-        epoch_length: number of iterations for one epoch, default to `len(val_data_loader)`.
+        epoch_length: number of iterations for one epochs, default to `len(val_data_loader)`.
         non_blocking: if True and this copy is between CPU and GPU, the copy may occur asynchronously
             with respect to the host. For other cases, this argument has no effect.
         prepare_batch: function to parse expected data (usually `image`, `label` and other network args)
@@ -58,12 +58,12 @@ class Evaluator(Workflow):
         postprocessing: execute additional transformation for the model output data.
             Typically, several Tensor based transforms composed by `Compose`.
         key_val_metric: compute metric when every iteration completed, and save average value to
-            engine.state.metrics when epoch completed. key_val_metric is the main metric to compare and save the
+            engine.state.metrics when epochs completed. key_val_metric is the main metric to compare and save the
             checkpoint into files.
         additional_metrics: more Ignite metrics that also attach to Ignite Engine.
         metric_cmp_fn: function to compare current key metric with previous best key metric value,
             it must accept 2 args (current_metric, previous_best) and return a bool result: if `True`, will update
-            `best_metric` and `best_metric_epoch` with current metric and epoch, default to `greater than`.
+            `best_metric` and `best_metric_epoch` with current metric and epochs, default to `greater than`.
         val_handlers: every handler is a set of Ignite Event-Handlers, must have `attach` function, like:
             CheckpointHandler, StatsHandler, etc.
         amp: whether to enable auto-mixed-precision evaluation, default is False.
@@ -138,12 +138,12 @@ class Evaluator(Workflow):
         Execute validation/evaluation based on Ignite Engine.
 
         Args:
-            global_epoch: the overall epoch if during a training. evaluator engine can get it from trainer.
+            global_epoch: the overall epochs if during a training. evaluator engine can get it from trainer.
 
         """
         # init env value for current validation process
-        self.state.max_epochs = max(global_epoch, 1)  # at least one epoch of validation
-        self.state.epoch = global_epoch - 1
+        self.state.max_epochs = max(global_epoch, 1)  # at least one epochs of validation
+        self.state.epochs = global_epoch - 1
         self.state.iteration = 0
         super().run()
 
@@ -176,7 +176,7 @@ class SupervisedEvaluator(Evaluator):
         device: an object representing the device on which to run.
         val_data_loader: Ignite engine use data_loader to run, must be Iterable, typically be torch.DataLoader.
         network: network to evaluate in the evaluator, should be regular PyTorch `torch.nn.Module`.
-        epoch_length: number of iterations for one epoch, default to `len(val_data_loader)`.
+        epoch_length: number of iterations for one epochs, default to `len(val_data_loader)`.
         non_blocking: if True and this copy is between CPU and GPU, the copy may occur asynchronously
             with respect to the host. For other cases, this argument has no effect.
         prepare_batch: function to parse expected data (usually `image`, `label` and other network args)
@@ -190,12 +190,12 @@ class SupervisedEvaluator(Evaluator):
         postprocessing: execute additional transformation for the model output data.
             Typically, several Tensor based transforms composed by `Compose`.
         key_val_metric: compute metric when every iteration completed, and save average value to
-            engine.state.metrics when epoch completed. key_val_metric is the main metric to compare and save the
+            engine.state.metrics when epochs completed. key_val_metric is the main metric to compare and save the
             checkpoint into files.
         additional_metrics: more Ignite metrics that also attach to Ignite Engine.
         metric_cmp_fn: function to compare current key metric with previous best key metric value,
             it must accept 2 args (current_metric, previous_best) and return a bool result: if `True`, will update
-            `best_metric` and `best_metric_epoch` with current metric and epoch, default to `greater than`.
+            `best_metric` and `best_metric_epoch` with current metric and epochs, default to `greater than`.
         val_handlers: every handler is a set of Ignite Event-Handlers, must have `attach` function, like:
             CheckpointHandler, StatsHandler, etc.
         amp: whether to enable auto-mixed-precision evaluation, default is False.
@@ -312,7 +312,7 @@ class EnsembleEvaluator(Evaluator):
     Args:
         device: an object representing the device on which to run.
         val_data_loader: Ignite engine use data_loader to run, must be Iterable, typically be torch.DataLoader.
-        epoch_length: number of iterations for one epoch, default to `len(val_data_loader)`.
+        epoch_length: number of iterations for one epochs, default to `len(val_data_loader)`.
         networks: networks to evaluate in order in the evaluator, should be regular PyTorch `torch.nn.Module`.
         pred_keys: the keys to store every prediction data.
             the length must exactly match the number of networks.
@@ -330,12 +330,12 @@ class EnsembleEvaluator(Evaluator):
         postprocessing: execute additional transformation for the model output data.
             Typically, several Tensor based transforms composed by `Compose`.
         key_val_metric: compute metric when every iteration completed, and save average value to
-            engine.state.metrics when epoch completed. key_val_metric is the main metric to compare and save the
+            engine.state.metrics when epochs completed. key_val_metric is the main metric to compare and save the
             checkpoint into files.
         additional_metrics: more Ignite metrics that also attach to Ignite Engine.
         metric_cmp_fn: function to compare current key metric with previous best key metric value,
             it must accept 2 args (current_metric, previous_best) and return a bool result: if `True`, will update
-            `best_metric` and `best_metric_epoch` with current metric and epoch, default to `greater than`.
+            `best_metric` and `best_metric_epoch` with current metric and epochs, default to `greater than`.
         val_handlers: every handler is a set of Ignite Event-Handlers, must have `attach` function, like:
             CheckpointHandler, StatsHandler, etc.
         amp: whether to enable auto-mixed-precision evaluation, default is False.

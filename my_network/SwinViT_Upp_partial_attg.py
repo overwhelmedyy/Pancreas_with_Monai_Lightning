@@ -20,6 +20,89 @@ from UXNet_3D.networks.UXNet_3D.uxnet_encoder import uxnet_conv
 from monai.networks.nets.swin_unetr import MERGING_MODE, BasicLayer
 from monai.utils import look_up_option
 
+class UpConv(nn.Module):
+    def __init__(self, spatial_dims: int, in_channels: int, out_channels: int, kernel_size=3, strides=2, dropout=0.0):
+        super().__init__()
+        self.up = Convolution(
+            spatial_dims,
+            in_channels,
+            out_channels,
+            strides=strides,
+            kernel_size=kernel_size,
+            act="relu",
+            adn_ordering="NDA",
+            norm=Norm.BATCH,
+            dropout=dropout,
+            is_transposed=True,
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_u: torch.Tensor = self.up(x)
+        return x_u
+
+
+class AttentionBlock(nn.Module):
+    def __init__(self, spatial_dims: int, f_int: int, f_g: int, f_l: int, dropout=0.0):
+        super().__init__()
+        self.W_g = nn.Sequential(
+            Convolution(
+                spatial_dims=spatial_dims,
+                in_channels=f_int,
+                out_channels=f_int,
+                kernel_size=1,
+                strides=1,
+                padding=0,
+                dropout=dropout,
+                conv_only=True,
+            ),
+            Norm[Norm.BATCH, spatial_dims](f_int),
+        )
+
+        self.W_x = nn.Sequential(
+            Convolution(
+                spatial_dims=spatial_dims,
+                in_channels=f_l,
+                out_channels=f_int,
+                kernel_size=1,
+                strides=1,
+                padding=0,
+                dropout=dropout,
+                conv_only=True,
+            ),
+            Norm[Norm.BATCH, spatial_dims](f_int),
+        )
+
+        self.psi = nn.Sequential(
+            Convolution(
+                spatial_dims=spatial_dims,
+                in_channels=f_int,
+                out_channels=1,
+                kernel_size=1,
+                strides=1,
+                padding=0,
+                dropout=dropout,
+                conv_only=True,
+            ),
+            Norm[Norm.BATCH, spatial_dims](1),
+            nn.Sigmoid(),
+        )
+
+        self.relu = nn.ReLU()
+
+        self.upconv = UpConv(spatial_dims, f_g, f_l, kernel_size=3, strides=2, dropout=dropout)
+
+    def forward(self, g: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        g = self.upconv(g)
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        psi: torch.Tensor = self.relu(g1 + x1)
+        psi = self.psi(psi)
+
+        return x * psi
+
+    def para_num(self):
+        return sum([param.nelement() for param in self.parameters()])
+
 def proj_out(x, normalize=False):
     if normalize:
         x_shape = x.size()
@@ -181,7 +264,7 @@ class SwinTransformer(nn.Module):
 
 
 # uxnet_3d + UNetpp
-class SwinViT_Upp(nn.Module):
+class SwinViT_Upp_attg_sw(nn.Module):
     def __init__(self,
                  in_chans=1,
                  out_channels=2,
@@ -192,7 +275,6 @@ class SwinViT_Upp(nn.Module):
 
                  res_block: bool = True,
                  spatial_dims=3,
-
 
                  act: str | tuple = ("LeakyReLU", {"negative_slope": 0.1, "inplace": True}),
                  norm: str | tuple = ("instance", {"affine": True}),
@@ -322,6 +404,72 @@ class SwinViT_Upp(nn.Module):
         self.final_conv_0_4 = Conv["conv", spatial_dims](feat_size[0], out_channels, kernel_size=1)
         self.final_conv_0_5 = Conv["conv", spatial_dims](feat_size[0], out_channels, kernel_size=1)
 
+        self.atgt_0_n = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_1_n = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_2_n = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+        self.atgt_3_n = AttentionBlock(spatial_dims=3, f_int=feat_size[3], f_g=feat_size[4], f_l=feat_size[3])
+        self.atgt_4_n = AttentionBlock(spatial_dims=3, f_int=feat_size[4], f_g=feat_size[5], f_l=feat_size[4])
+
+        # 命名规则：atgt_xx_yy:atgt表示attention gate，xx表示终点，yy表示起点
+
+        # 第一行
+        self.atgt_01_00 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+
+        self.atgt_02_00 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_02_01 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+
+        self.atgt_03_00 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_03_01 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_03_02 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+
+        self.atgt_04_00 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_04_01 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_04_02 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_04_03 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+
+        self.atgt_05_00 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_05_01 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_05_02 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_05_03 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+        self.atgt_05_04 = AttentionBlock(spatial_dims=3, f_int=feat_size[0], f_g=feat_size[1], f_l=feat_size[0])
+
+        #第二行
+        self.atgt_11_10 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+
+        self.atgt_12_10 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_12_11 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+
+        self.atgt_13_10 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_13_11 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_13_12 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+
+        self.atgt_14_10 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_14_11 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_14_12 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+        self.atgt_14_13 = AttentionBlock(spatial_dims=3, f_int=feat_size[1], f_g=feat_size[2], f_l=feat_size[1])
+
+        # 第三行
+        self.atgt_21_20 = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+
+        self.atgt_22_20 = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+        self.atgt_22_21 = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+
+        self.atgt_23_20 = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+        self.atgt_23_21 = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+        self.atgt_23_22 = AttentionBlock(spatial_dims=3, f_int=feat_size[2], f_g=feat_size[3], f_l=feat_size[2])
+
+        # 第四行
+        self.atgt_31_30 = AttentionBlock(spatial_dims=3, f_int=feat_size[3], f_g=feat_size[4], f_l=feat_size[3])
+
+        self.atgt_32_30 = AttentionBlock(spatial_dims=3, f_int=feat_size[3], f_g=feat_size[4], f_l=feat_size[3])
+        self.atgt_32_31 = AttentionBlock(spatial_dims=3, f_int=feat_size[3], f_g=feat_size[4], f_l=feat_size[3])
+
+        # 第五行
+        self.atgt_41_40 = AttentionBlock(spatial_dims=3, f_int=feat_size[4], f_g=feat_size[5], f_l=feat_size[4])
+
+
+
+
     def forward(self, x_in):
         outs = self.swinViT(x_in, self.normalize)
         enc0 = self.encoder0(x_in)
@@ -338,11 +486,11 @@ class SwinViT_Upp(nn.Module):
         x_4_0 = enc4
         x_5_0 = enc5
 
-        x_0_1 = self.upcat_0_1(x_1_0, x_0_0)
-        x_1_1 = self.upcat_1_1(x_2_0, x_1_0)
-        x_2_1 = self.upcat_2_1(x_3_0, x_2_0)
-        x_3_1 = self.upcat_3_1(x_4_0, x_3_0)
-        x_4_1 = self.upcat_4_1(x_5_0, x_4_0)
+        x_0_1 = self.upcat_0_1(x_1_0, self.atgt_01_00(x_1_0, x_0_0))
+        x_1_1 = self.upcat_1_1(x_2_0, self.atgt_11_10(x_2_0, x_1_0))
+        x_2_1 = self.upcat_2_1(x_3_0, self.atgt_21_20(x_3_0, x_2_0))
+        x_3_1 = self.upcat_3_1(x_4_0, self.atgt_31_30(x_4_0, x_3_0))
+        x_4_1 = self.upcat_4_1(x_5_0, self.atgt_41_40(x_5_0, x_4_0))
 
         x_0_2 = self.upcat_0_2(x_1_1, torch.cat([x_0_0, x_0_1], dim=1))
         x_1_2 = self.upcat_1_2(x_2_1, torch.cat([x_1_0, x_1_1], dim=1))
@@ -364,7 +512,7 @@ class SwinViT_Upp(nn.Module):
         output_0_4 = self.final_conv_0_4(x_0_4)
         output_0_5 = self.final_conv_0_5(x_0_5)
 
-        output = output_0_5
+        output = [output_0_5]
 
         return output
 
@@ -373,10 +521,15 @@ class SwinViT_Upp(nn.Module):
 
 
 if __name__ == "__main__":
-    module1 = yymodule1(
+    module1 = SwinViT_Upp_attg_sw(
         in_chans=1,
     )
     print(module1.para_num())
     x = torch.rand(1, 1, 64, 64, 64)
     y = module1(x)
     print(y[0].shape)
+
+
+# C:\ProgramData\anaconda3\envs\nnunet\python.exe C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\my_network\SwinViT_Upp_attg.py
+# 50284843
+# torch.Size([1, 2, 64, 64, 64])

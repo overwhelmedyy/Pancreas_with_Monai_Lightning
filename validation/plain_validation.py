@@ -7,7 +7,7 @@ from torch.hub import tqdm
 import glob
 import os
 import random
-from UXNet_3D.networks.UXNet_3D.network_backbone import UXNET
+
 import lightning
 import numpy as np
 import torch
@@ -41,7 +41,7 @@ persistent_cache = os.path.join(data_dir, "persistent_cache")
 tensorboard_dir = os.path.join("../runs", f"{task_name}")
 cuda = torch.device("cuda:0")
 
-modulepth = r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\UNet\version_60\checkpoints\epoch=939-step=15980.ckpt"
+modulepth = r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\UNet\version_0\checkpoints\epoch=889-step=59630.ckpt"
 criterion_name = "DiceMetric"
 
 import re
@@ -121,8 +121,8 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # 读数据的名字
-    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "*.nii.gz")))
+    train_images = sorted(glob.glob(os.path.join(data_dir, "img", "*.nii.gz")))
+    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg", "*.nii.gz")))
 
     fltr_train_images = [string for string in train_images if not any(block in string for block in block_list)]
     fltr_train_labels = [string for string in train_labels if not any(block in string for block in block_list)]
@@ -160,15 +160,15 @@ def main():
     valid_loader = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True,
                               collate_fn=pad_list_data_collate, num_workers=4)
 
-    # model = UNet(
-    #     spatial_dims=3,
-    #     in_channels=1,
-    #     out_channels=2,
-    #     channels=(16, 32, 64, 128, 256),
-    #     strides=(2, 2, 2, 2),
-    #     num_res_units=2,
-    #     norm=Norm.BATCH,
-    # )
+    model = UNet(
+        spatial_dims=3,
+        in_channels=1,
+        out_channels=2,
+        channels=(16, 32, 64, 128, 256),
+        strides=(2, 2, 2, 2),
+        num_res_units=2,
+        norm=Norm.BATCH,
+    )
 
     # model = UXNET(
     #     in_chans=1,
@@ -180,14 +180,14 @@ def main():
     #     spatial_dims=3,
     # ).to(device)
 
-    model = SwinUNETR(
-            spatial_dims=3,
-            in_channels=1,
-            out_channels=2,
-            img_size=(96, 96, 96)
-        ).to(device)
+    # model = SwinUNETR(
+    #         spatial_dims=3,
+    #         in_channels=1,
+    #         out_channels=2,
+    #         img_size=(96, 96, 96)
+    #     ).to(device)
 
-    ckpt = torch.load(r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinUNETR\version_16\checkpoints\epoch=24-step=1800.ckpt")
+    ckpt = torch.load(r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\UNet\version_0\checkpoints\epoch=889-step=59630.ckpt")
 
     new_state_dict = {}
     for key, value in ckpt["state_dict"].items():
@@ -207,8 +207,7 @@ def main():
 
 def write_record():
         now = datetime.datetime.now()
-        instant_time = now.strftime("%Y-%m-%d\n"
-                                    "%H:%M:%S")
+        instant_time = now.strftime("%m%d_%H%M")
         wb = load_workbook(fr"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\validation_results\{network_name}.xlsx")
 
         # Check if the sheet exists
@@ -246,4 +245,5 @@ if __name__ == "__main__":
     atexit.register(write_record)
 
     main()
+    print(all)
 

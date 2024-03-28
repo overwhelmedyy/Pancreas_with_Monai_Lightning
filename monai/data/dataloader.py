@@ -62,9 +62,9 @@ class DataLoader(_TorchDataLoader):
 
         dataset = RandomDataset()
         dataloader = DataLoader(dataset, batch_size=2, num_workers=4)
-        for epoch in range(2):
+        for epochs in range(2):
             for i, batch in enumerate(dataloader):
-                print(epoch, i, batch.data.numpy().flatten().tolist())
+                print(epochs, i, batch.data.numpy().flatten().tolist())
 
     Args:
         dataset: dataset from which to load the data.

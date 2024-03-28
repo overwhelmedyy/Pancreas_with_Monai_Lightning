@@ -530,7 +530,7 @@ class MonaiAlgo(ClientAlgo, MonaiAlgoStats):
         self._check_converted(data.weights, local_var_dict, n_converted)
 
         # set engine state max epochs.
-        self.trainer.state.max_epochs = self.trainer.state.epoch + self.local_epochs
+        self.trainer.state.max_epochs = self.trainer.state.epochs + self.local_epochs
         # get current iteration when a round starts
         self.iter_of_start_time = self.trainer.state.iteration
 
@@ -589,7 +589,7 @@ class MonaiAlgo(ClientAlgo, MonaiAlgoStats):
                     weights[k] = weights[k].cpu()
                 weigh_type = WeightType.WEIGHTS
                 stats = self.trainer.get_stats()
-                # calculate current iteration and epoch data after training.
+                # calculate current iteration and epochs data after training.
                 stats[FlStatistics.NUM_EXECUTED_ITERATIONS] = self.trainer.state.iteration - self.iter_of_start_time
                 # compute weight differences
                 if self.send_weight_diff:
@@ -657,7 +657,7 @@ class MonaiAlgo(ClientAlgo, MonaiAlgoStats):
             self.logger.warning("No weights loaded!")
         self.logger.info(f"Start {self.client_name} evaluating...")
         if isinstance(self.trainer, Trainer):
-            self.evaluator.run(self.trainer.state.epoch + 1)
+            self.evaluator.run(self.trainer.state.epochs + 1)
         else:
             self.evaluator.run()
         return_metrics = ExchangeObject(metrics=self.evaluator.state.metrics)

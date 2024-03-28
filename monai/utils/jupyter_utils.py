@@ -314,9 +314,9 @@ class ThreadContainer(Thread):
 
             if state is not None:
                 if state.max_epochs is not None and state.max_epochs >= 1:
-                    epoch = f"{state.epoch}/{state.max_epochs}"
+                    epoch = f"{state.epochs}/{state.max_epochs}"
                 else:
-                    epoch = str(state.epoch)
+                    epoch = str(state.epochs)
 
                 if state.epoch_length is not None:
                     iters = f"{state.iteration % state.epoch_length}/{state.epoch_length}"

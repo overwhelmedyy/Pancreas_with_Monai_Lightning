@@ -261,10 +261,10 @@ class Net(lightning.LightningModule):
             self.best_val_dice = mean_val_dice
             self.best_val_epoch = self.current_epoch
         print(
-            f"current epoch: {self.current_epoch} "
+            f"current epochs: {self.current_epoch} "
             f"current mean dice: {mean_val_dice:.4f}"
             f"\nbest mean dice: {self.best_val_dice:.4f} "
-            f"at epoch: {self.best_val_epoch}"
+            f"at epochs: {self.best_val_epoch}"
         )
         self.validation_step_outputs.clear()
         self.log_dict(tensorboard_logs, logger=True)
@@ -286,7 +286,7 @@ if __name__ == "__main__":
         num_sanity_val_steps=None
     )
 
-    resume_module = Net.load_from_checkpoint(r"runs/Task01_pancreas/AttentionUNet/version_5/checkpoints/epoch=24-step=850.ckpt",
+    resume_module = Net.load_from_checkpoint(r"runs/Task01_pancreas/AttentionUNet/version_5/checkpoints/epochs=24-step=850.ckpt",
                                              learning_rate=learning_rate)
     trainer.fit(resume_module)
-    print(f"train completed, best_metric: {net.best_val_dice:.4f} " f"at epoch {net.best_val_epoch}")
+    print(f"train completed, best_metric: {net.best_val_dice:.4f} " f"at epochs {net.best_val_epoch}")

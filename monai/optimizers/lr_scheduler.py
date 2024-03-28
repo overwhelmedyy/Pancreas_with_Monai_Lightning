@@ -29,7 +29,7 @@ class _LRSchedulerMONAI(_LRScheduler):
             optimizer: wrapped optimizer.
             end_lr: the final learning rate.
             num_iter: the number of iterations over which the test occurs.
-            last_epoch: the index of last epoch.
+            last_epoch: the index of last epochs.
         Returns:
             None
         """
@@ -80,7 +80,7 @@ class WarmupCosineSchedule(LambdaLR):
             t_total: total number of training iterations.
             end_lr: the final learning rate. Defaults to 0.0.
             cycles: cosine cycles parameter.
-            last_epoch: the index of last epoch.
+            last_epoch: the index of last epochs.
             warmup_multiplier: if provided, starts the linear warmup from this fraction of the initial lr.
                 Must be in 0..1 interval. Defaults to 0
         Returns:

@@ -21,7 +21,7 @@ from monai.utils import Average
 class ROCAUC(IgniteMetricHandler):
     """
     Computes Area Under the Receiver Operating Characteristic Curve (ROC AUC).
-    accumulating predictions and the ground-truth during an epoch and applying `compute_roc_auc`.
+    accumulating predictions and the ground-truth during an epochs and applying `compute_roc_auc`.
 
     Args:
         average: {``"macro"``, ``"weighted"``, ``"micro"``, ``"none"``}

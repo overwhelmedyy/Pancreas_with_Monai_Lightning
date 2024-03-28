@@ -43,8 +43,8 @@ class EarlyStopHandler:
             i.e. an increase of less than or equal to `min_delta`, will count as no improvement.
         cumulative_delta: if True, `min_delta` defines an increase since the last `patience` reset, otherwise,
             it defines an increase after the last event, default to False.
-        epoch_level: check early stopping for every epoch or every iteration of the attached engine,
-            `True` is epoch level, `False` is iteration level, default to epoch level.
+        epoch_level: check early stopping for every epochs or every iteration of the attached engine,
+            `True` is epochs level, `False` is iteration level, default to epochs level.
 
     Note:
         If in distributed training and uses loss value of every iteration to detect early stopping,

@@ -25,47 +25,38 @@ import os
 import numpy as np
 from tqdm import tqdm
 import argparse
+args = argparse.Namespace(
+    # Input data hyperparameters
+    root = '',          # Root folder of all your images and labels
+    output = '',        # Output folder for both tensorboard and the best model
+    dataset = 'flare',  # Datasets: {feta, flare, amos}, Fyi: You can add your dataset here
 
-parser = argparse.ArgumentParser(description='3D UX-Net hyperparameters for medical image segmentation')
-## Input data hyperparameters
-parser.add_argument('--root', type=str, default='', required=True, help='Root folder of all your images and labels')
-parser.add_argument('--output', type=str, default='', required=True, help='Output folder for both tensorboard and the best model')
-parser.add_argument('--dataset', type=str, default='flare', required=True, help='Datasets: {feta, flare, amos}, Fyi: You can add your dataset here')
+    # Input model & training hyperparameters
+    network = '3DUXNET',# Network models: {TransBTS, nnFormer, UNETR, SwinUNETR, 3DUXNET}
+    mode = 'train',     # Training or testing mode
+    pretrain = False,   # Have pretrained weights or not
+    pretrained_weights = '',  # Path of pretrained weights
+    batch_size = 1,     # Batch size for subject input
+    crop_sample = 2,    # Number of cropped sub-volumes for each subject
+    lr = 0.0001,        # Learning rate for training
+    optim = 'AdamW',    # Optimizer types: Adam / AdamW
+    max_iter = 40000,   # Maximum iteration steps for training
+    eval_step = 500,    # Per steps to perform validation
 
-## Input model & training hyperparameters
-parser.add_argument('--network', type=str, default='3DUXNET', help='Network models: {TransBTS, nnFormer, UNETR, SwinUNETR, 3DUXNET}')
-parser.add_argument('--mode', type=str, default='train', help='Training or testing mode')
-parser.add_argument('--pretrain', default=False, help='Have pretrained weights or not')
-parser.add_argument('--pretrained_weights', default='', help='Path of pretrained weights')
-parser.add_argument('--batch_size', type=int, default='1', help='Batch size for subject input')
-parser.add_argument('--crop_sample', type=int, default='2', help='Number of cropped sub-volumes for each subject')
-parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate for training')
-parser.add_argument('--optim', type=str, default='AdamW', help='Optimizer types: Adam / AdamW')
-parser.add_argument('--max_iter', type=int, default=40000, help='Maximum iteration steps for training')
-parser.add_argument('--eval_step', type=int, default=500, help='Per steps to perform validation')
+    # Efficiency hyperparameters
+    gpu = '0',  # Your GPU number
+    cache_rate = 0.1,  # Cache rate to cache your dataset into GPUs
+    num_workers = 2,  # Number of workers
+)
 
-## Efficiency hyperparameters
-parser.add_argument('--gpu', type=str, default='0', help='your GPU number')
-parser.add_argument('--cache_rate', type=float, default=0.1, help='Cache rate to cache your dataset into GPUs')
-parser.add_argument('--num_workers', type=int, default=2, help='Number of workers')
-
-
-args = parser.parse_args()
 
 os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 print('Used GPU: {}'.format(args.gpu))
 
 train_samples, valid_samples, out_classes = data_loader(args)
 
-train_files = [
-    {"image": image_name, "label": label_name}
-    for image_name, label_name in zip(train_samples['images'], train_samples['labels'])
-]
-
-val_files = [
-    {"image": image_name, "label": label_name}
-    for image_name, label_name in zip(valid_samples['images'], valid_samples['labels'])
-]
+train_files = [{"image": image_name, "label": label_name} for image_name, label_name in zip(train_samples['images'], train_samples['labels'])]
+val_files = [{"image": image_name, "label": label_name} for image_name, label_name in zip(valid_samples['images'], valid_samples['labels'])]
 
 
 set_determinism(seed=0)
@@ -74,14 +65,17 @@ train_transforms, val_transforms = data_transforms(args)
 
 ## Train Pytorch Data Loader and Caching
 print('Start caching datasets!')
-train_ds = CacheDataset(
-    data=train_files, transform=train_transforms,
-    cache_rate=args.cache_rate, num_workers=args.num_workers)
+train_ds = CacheDataset(data=train_files,
+                        transform=train_transforms,
+                        cache_rate=args.cache_rate,
+                        num_workers=args.num_workers)
 train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
 
 ## Valid Pytorch Data Loader and Caching
-val_ds = CacheDataset(
-    data=val_files, transform=val_transforms, cache_rate=args.cache_rate, num_workers=args.num_workers)
+val_ds = CacheDataset(data=val_files,
+                      transform=val_transforms,
+                      cache_rate=args.cache_rate,
+                      num_workers=args.num_workers)
 val_loader = DataLoader(val_ds, batch_size=1, num_workers=args.num_workers)
 
 
@@ -103,7 +97,7 @@ elif args.network == 'SwinUNETR':
         in_channels=1,
         out_channels=out_classes,
         feature_size=48,
-        use_checkpoint=False,
+        use_checkpoint=False
     ).to(device)
 elif args.network == 'nnFormer':
     model = nnFormer(input_channels=1, num_classes=out_classes).to(device)
@@ -125,6 +119,8 @@ elif args.network == 'UNETR':
 elif args.network == 'TransBTS':
     _, model = TransBTS(dataset=args.dataset, _conv_repr=True, _pe_type='learned')
     model = model.to(device)
+else:
+    raise ValueError("Sweetie,what's your module?")
 
 print('Chosen Network Architecture: {}'.format(args.network))
 
@@ -187,9 +183,8 @@ def train(global_step, train_loader, dice_val_best, global_step_best):
     model.train()
     epoch_loss = 0
     step = 0
-    epoch_iterator = tqdm(
-        train_loader, desc="Training (X / X Steps) (loss=X.X)", dynamic_ncols=True
-    )
+    epoch_iterator = tqdm(train_loader, desc="Training (X / X Steps) (loss=X.X)", dynamic_ncols=True)
+
     for step, batch in enumerate(epoch_iterator):
         step += 1
         x, y = (batch["image"].cuda(), batch["label"].cuda())
@@ -201,12 +196,9 @@ def train(global_step, train_loader, dice_val_best, global_step_best):
         epoch_loss += loss.item()
         optimizer.step()
         optimizer.zero_grad()
-        epoch_iterator.set_description(
-            "Training (%d / %d Steps) (loss=%2.5f)" % (global_step, max_iterations, loss)
-        )
-        if (
-            global_step % eval_num == 0 and global_step != 0
-        ) or global_step == max_iterations:
+        epoch_iterator.set_description("Training (%d / %d Steps) (loss=%2.5f)" % (global_step, max_iterations, loss))
+
+        if (global_step % eval_num == 0 and global_step != 0) or global_step == max_iterations:
             epoch_iterator_val = tqdm(
                 val_loader, desc="Validate (X / X Steps) (dice=X.X)", dynamic_ncols=True
             )
@@ -217,21 +209,11 @@ def train(global_step, train_loader, dice_val_best, global_step_best):
             if dice_val > dice_val_best:
                 dice_val_best = dice_val
                 global_step_best = global_step
-                torch.save(
-                    model.state_dict(), os.path.join(root_dir, "best_metric_model.pth")
-                )
-                print(
-                    "Model Was Saved ! Current Best Avg. Dice: {} Current Avg. Dice: {}".format(
-                        dice_val_best, dice_val
-                    )
-                )
+                torch.save(model.state_dict(), os.path.join(root_dir, "best_metric_model.pth"))
+                print(f"Model Was Saved ! Current Best Avg. Dice: {dice_val_best} Current Avg. Dice: {dice_val}")
                 # scheduler.step(dice_val)
             else:
-                print(
-                    "Model Was Not Saved ! Current Best Avg. Dice: {} Current Avg. Dice: {}".format(
-                        dice_val_best, dice_val
-                    )
-                )
+                print(f"Model Was Not Saved ! Current Best Avg. Dice: {dice_val_best} Current Avg. Dice: {dice_val}")
                 # scheduler.step(dice_val)
         writer.add_scalar('Training Segmentation Loss', loss.data, global_step)
         global_step += 1

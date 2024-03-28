@@ -40,7 +40,7 @@ class ValidationHandler:
             validator: run the validator when trigger validation, suppose to be Evaluator.
                 if None, should call `set_validator()` before training.
             epoch_level: execute validation every N epochs or N iterations.
-                `True` is epoch level, `False` is iteration level.
+                `True` is epochs level, `False` is iteration level.
             exec_at_start: whether to execute a validation first when starting the training.
                 default to `False`. It can be useful especially for some transfer-learning cases
                 to validate the initial model before training.
@@ -83,4 +83,4 @@ class ValidationHandler:
         """
         if self.validator is None:
             raise RuntimeError("please set validator in __init__() or call `set_validator()` before training.")
-        self.validator.run(engine.state.epoch)
+        self.validator.run(engine.state.epochs)

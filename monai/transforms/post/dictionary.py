@@ -796,7 +796,7 @@ class SaveClassificationd(MapTransform):
 
     def get_saver(self):
         """
-        If want to write content into file, may need to call `finalize` of saver when epoch completed.
+        If want to write content into file, may need to call `finalize` of saver when epochs completed.
         Or users can also get the cache content from `saver` instead of writing into file.
 
         """

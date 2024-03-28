@@ -474,7 +474,7 @@ if __name__ == "__main__":
         num_sanity_val_steps=None
     )
 
-    # module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_30/checkpoints/epoch=144-step=2465.ckpt",learning_rate=learning_rate)
+    # module_resume = Net.load_from_checkpoint(r"runs/Task01_pancreas/UNet/version_30/checkpoints/epochs=144-step=2465.ckpt",learning_rate=learning_rate)
     #
 
 

@@ -34,7 +34,7 @@ else:
 class CheckpointSaver:
     """
     CheckpointSaver acts as an Ignite handler to save checkpoint data into files.
-    It supports to save according to metrics result, epoch number, iteration number
+    It supports to save according to metrics result, epochs number, iteration number
     and last model or exception.
 
     Args:
@@ -71,9 +71,9 @@ class CheckpointSaver:
             because for error-like metrics, smaller is better(objects with larger score are retained).
             default to `False`.
         epoch_level: save checkpoint during training for every N epochs or every N iterations.
-            `True` is epoch level, `False` is iteration level.
+            `True` is epochs level, `False` is iteration level.
         save_interval: save checkpoint every N epochs, default is 0 to save no checkpoint.
-        n_saved: save latest N checkpoints of epoch level or iteration level, 'None' is to save all.
+        n_saved: save latest N checkpoints of epochs level or iteration level, 'None' is to save all.
 
     Note:
         CheckpointHandler can be used during training, validation or evaluation.
@@ -194,14 +194,14 @@ class CheckpointSaver:
         if save_interval > 0:
 
             def _interval_func(engine: Engine) -> Any:
-                return engine.state.epoch if self.epoch_level else engine.state.iteration
+                return engine.state.epochs if self.epoch_level else engine.state.iteration
 
             self._interval_checkpoint = Checkpoint(
                 to_save=self.save_dict,
                 save_handler=_DiskSaver(dirname=self.save_dir),
                 filename_prefix=file_prefix,
                 score_function=_interval_func,
-                score_name="epoch" if self.epoch_level else "iteration",
+                score_name="epochs" if self.epoch_level else "iteration",
                 n_saved=n_saved,
             )
 
@@ -305,7 +305,7 @@ class CheckpointSaver:
         raise e
 
     def metrics_completed(self, engine: Engine) -> None:
-        """Callback to compare metrics and save models in train or validation when epoch completed.
+        """Callback to compare metrics and save models in train or validation when epochs completed.
 
         Args:
             engine: Ignite Engine, it can be a trainer, validator or evaluator.
@@ -315,7 +315,7 @@ class CheckpointSaver:
         self._key_metric_checkpoint(engine)
 
     def interval_completed(self, engine: Engine) -> None:
-        """Callback for train epoch/iteration completed Event.
+        """Callback for train epochs/iteration completed Event.
         Save checkpoint if configure save_interval = N
 
         Args:
@@ -329,6 +329,6 @@ class CheckpointSaver:
         if not hasattr(self.logger, "info"):
             raise AssertionError("Error, provided logger has not info attribute.")
         if self.epoch_level:
-            self.logger.info(f"Saved checkpoint at epoch: {engine.state.epoch}")
+            self.logger.info(f"Saved checkpoint at epochs: {engine.state.epochs}")
         else:
             self.logger.info(f"Saved checkpoint at iteration: {engine.state.iteration}")

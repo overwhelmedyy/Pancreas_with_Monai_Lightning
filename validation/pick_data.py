@@ -101,7 +101,7 @@ if __name__ == "__main__":
         num_res_units=2,
         norm=Norm.BATCH,
     )
-    ckpt = torch.load("../runs/Task01_pancreas/UNet/version_60/checkpoints/epoch=939-step=15980.ckpt")
+    ckpt = torch.load("../runs/Task01_pancreas/UNet/version_60/checkpoints/epochs=939-step=15980.ckpt")
 
     post_pred = Compose(
         [EnsureType("tensor", device=torch.device("cpu")), AsDiscrete(argmax=True, to_onehot=2)])

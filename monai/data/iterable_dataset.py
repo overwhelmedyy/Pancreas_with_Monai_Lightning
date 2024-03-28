@@ -88,9 +88,9 @@ class ShuffleBuffer(Randomizable, IterableDataset):
 
                 dataloader = monai.data.DataLoader(
                     dss, batch_size=1, num_workers=2, persistent_workers=True)
-                for epoch in range(3):
+                for epochs in range(3):
                     for item in dataloader:
-                        print(f"epoch: {epoch} item: {item}.")
+                        print(f"epochs: {epochs} item: {item}.")
 
             if __name__ == '__main__':
                 run()
@@ -142,7 +142,7 @@ class CSVIterableDataset(IterableDataset):
     https://pytorch.org/docs/stable/data.html?highlight=iterabledataset#torch.utils.data.IterableDataset.
 
     It also can be helpful when loading extremely big CSV files that can't read into memory directly,
-    just treat the big CSV file as stream input, call `reset()` of `CSVIterableDataset` for every epoch.
+    just treat the big CSV file as stream input, call `reset()` of `CSVIterableDataset` for every epochs.
     Note that as a stream input, it can't get the length of dataset.
 
     To effectively shuffle the data in the big dataset, users can set a big buffer to continuously store

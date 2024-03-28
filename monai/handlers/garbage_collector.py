@@ -30,14 +30,14 @@ else:
 
 class GarbageCollector:
     """
-    Run garbage collector after each epoch
+    Run garbage collector after each epochs
 
     Args:
         trigger_event: the event that trigger a call to this handler.
-            - "epoch", after completion of each epoch (equivalent of ignite.engine.Events.EPOCH_COMPLETED)
+            - "epochs", after completion of each epochs (equivalent of ignite.engine.Events.EPOCH_COMPLETED)
             - "iteration", after completion of each iteration (equivalent of ignite.engine.Events.ITERATION_COMPLETED)
             - any ignite built-in event from ignite.engine.Events.
-            Defaults to "epoch".
+            Defaults to "epochs".
         log_level: log level (integer) for some garbage collection information as below. Defaults to 10 (DEBUG).
             - 50 (CRITICAL)
             - 40 (ERROR)
@@ -47,17 +47,17 @@ class GarbageCollector:
             - 0 (NOTSET)
     """
 
-    def __init__(self, trigger_event: str | Events | CallableEventWithFilter = "epoch", log_level: int = 10):
+    def __init__(self, trigger_event: str | Events | CallableEventWithFilter = "epochs", log_level: int = 10):
         self.trigger_event: Events | CallableEventWithFilter
         if isinstance(trigger_event, (Events, CallableEventWithFilter)):
             self.trigger_event = trigger_event
-        elif trigger_event.lower() == "epoch":
+        elif trigger_event.lower() == "epochs":
             self.trigger_event = Events.EPOCH_COMPLETED
         elif trigger_event.lower() == "iteration":
             self.trigger_event = Events.ITERATION_COMPLETED
         else:
             raise ValueError(
-                f"'trigger_event' should be either epoch, iteration, or an ignite built-in event from"
+                f"'trigger_event' should be either epochs, iteration, or an ignite built-in event from"
                 f" ignite.engine.Events, '{trigger_event}' was given."
             )
 
