@@ -76,7 +76,7 @@ class DiceMetric(CumulativeIterationMetric):
             num_classes=self.num_classes,
         )
 
-    def _compute_tensor(self, y_pred: torch.Tensor, y: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def _compute_tensor(self, y_pred: torch.Tensor, y: torch.Tensor | None = None, **kwargs: Any) -> TensorOrList:  # type: ignore[override]
         """
         Args:
             y_pred: input data to compute, typical segmentation model output.

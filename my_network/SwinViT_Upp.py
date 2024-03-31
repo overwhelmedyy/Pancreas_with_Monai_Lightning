@@ -10,13 +10,11 @@ from monai.networks.layers import Conv, Norm
 
 from monai.networks.nets.basic_unet import UpCat
 
-from monai.networks.blocks.dynunet_block import UnetOutBlock
+
 from monai.networks.blocks.unetr_block import UnetrBasicBlock, UnetrUpBlock
 from typing import Union
 import torch.nn.functional as F
-from lib.utils.tools.logger import Logger as Log
-from lib.models.tools.module_helper import ModuleHelper
-from UXNet_3D.networks.UXNet_3D.uxnet_encoder import uxnet_conv
+
 from monai.networks.nets.swin_unetr import MERGING_MODE, BasicLayer
 from monai.utils import look_up_option
 
@@ -364,19 +362,21 @@ class SwinViT_Upp(nn.Module):
         output_0_4 = self.final_conv_0_4(x_0_4)
         output_0_5 = self.final_conv_0_5(x_0_5)
 
-        output = output_0_5
+        output = [output_0_1, output_0_2, output_0_3, output_0_4, output_0_5]
 
         return output
 
-    def para_num(network):
-        return sum(p.numel() for p in network.parameters())
+    def para_num(self):
+        for name, block in self.named_children():
+            params = sum(p.numel() for p in block.parameters())
+            print(f"{name}: {round(params / 1e6, 4)}M")
+        total_params = sum(p.numel() for p in self.parameters())
+        print(f"Total: {round(total_params/ 1e6, 4)}M")
 
 
 if __name__ == "__main__":
-    module1 = yymodule1(
-        in_chans=1,
-    )
-    print(module1.para_num())
-    x = torch.rand(1, 1, 64, 64, 64)
-    y = module1(x)
-    print(y[0].shape)
+    module1 = SwinViT_Upp()
+    module1.para_num()
+    # x = torch.rand(1, 1, 64, 64, 64)
+    # y = module1(x)
+    # print(y[0].shape)

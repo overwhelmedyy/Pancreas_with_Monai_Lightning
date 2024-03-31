@@ -10,13 +10,11 @@ from monai.networks.layers import Conv, Norm
 
 from monai.networks.nets.basic_unet import UpCat
 
-from monai.networks.blocks.dynunet_block import UnetOutBlock
+
 from monai.networks.blocks.unetr_block import UnetrBasicBlock, UnetrUpBlock
 from typing import Union
 import torch.nn.functional as F
-from lib.utils.tools.logger import Logger as Log
-from lib.models.tools.module_helper import ModuleHelper
-from UXNet_3D.networks.UXNet_3D.uxnet_encoder import uxnet_conv
+
 from monai.networks.nets.swin_unetr import MERGING_MODE, BasicLayer
 from monai.utils import look_up_option
 
@@ -264,7 +262,7 @@ class SwinTransformer(nn.Module):
 
 
 # uxnet_3d + UNetpp
-class SwinViT_Upp_attg_sw(nn.Module):
+class SwinViT_Upp_attg(nn.Module):
     def __init__(self,
                  in_chans=1,
                  out_channels=2,
@@ -533,7 +531,7 @@ class SwinViT_Upp_attg_sw(nn.Module):
         output_0_4 = self.final_conv_0_4(x_0_4)
         output_0_5 = self.final_conv_0_5(x_0_5)
 
-        output = [output_0_5]
+        output = output_0_5
 
         return output
 
@@ -542,7 +540,7 @@ class SwinViT_Upp_attg_sw(nn.Module):
 
 
 if __name__ == "__main__":
-    module1 = SwinViT_Upp_attg_sw(
+    module1 = SwinViT_Upp_attg(
         in_chans=1,
     )
     print(module1.para_num())

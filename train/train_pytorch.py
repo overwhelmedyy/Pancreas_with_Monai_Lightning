@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import Compose
 
+from loss_func.try_loss_function import DTK_loss
 from monai.data import pad_list_data_collate, decollate_batch, DataLoader, CacheDataset
 from monai.losses import DiceLoss
 from monai.metrics import DiceMetric
@@ -20,19 +21,20 @@ from monai.transforms import (
     RandAffined, RandRotated, RandFlipd, ResizeWithPadOrCropd, EnsureChannelFirstd, EnsureType, AsDiscrete
 )
 from my_network.SwinViT_Upp import SwinViT_Upp
+from my_network.SwinViT_Upp_attg import SwinViT_Upp_attg
 
 args = argparse.Namespace(
     task_name="Task01_pancreas",
-    network_name="SwinUNETR_pytorch",
+    network_name="SwinViT_Upp_pytorch",
     countiune_train=True,  # True ot False
-    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinViT_Upp_pytorch\best260_0.8577467203140259.pth",
+    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinViT_Upp_pytorch\0327_1841\checkpoint\best260_0.8577467203140259.pth",
     no_cuda=False,  # disables CUDA training
     save_model_every_n_epoch=1,  # save model every epochs (default : 1)
     val_every_n_epoch=5,  # validate every epochs (default : 1)
     log_every_n_step=10,  # log every step (default : 1)
     epochs=1000,  # number of epochs (default : 10)
-    lr=3e-4,  # base learning rate (default : 0.01)
-    batch_size=2,  # batch size (default : 4)
+    lr=2.5e-4,  # base learning rate (default : 0.01)
+    batch_size=1,  # batch size (default : 4)
     dry_run=False  # quickly check a single pass
 )
 
@@ -71,6 +73,9 @@ class TrainEval:
         self.args = args  # 超参数包
         self.previous_model_path = None  # 保存上一个模型的路径
         self.this_model_path = None  # 保存此次模型的路径 先存新的，再删旧的
+
+        self.best_model_path = None  # 保存最好的模型的路径
+        self.nd_model_path = None  # 删除第二好的模型
 
         # 我觉得需要后处理，但是没有好像也能跑
         self.post_pred = Compose(
@@ -142,19 +147,19 @@ class TrainEval:
                 images, labels = images.to(self.device), labels.to(self.device)
 
                 logits = self.model(images)
-                logits = [self.post_pred(i) for i in decollate_batch(logits)]  # 这里用list加后处理没问题
+                logits = [self.post_pred(i) for i in decollate_batch(logits[4])]  # 这里用list加后处理没问题
                 labels = [self.post_label(i) for i in decollate_batch(labels)]  # 可以运行
                 self.metric(logits, labels)
                 # 这里好像是可以用的，先不改
                 tk_step.set_postfix({"metric": "%4f" % round(self.metric.aggregate().item(), 5)})
 
             metric = self.metric.aggregate().item()
+            self.metric.reset()
             self.writer.add_scalar("val_metric", metric, current_epoch)
 
         return metric
 
     def train(self):
-
         self.val_metric_latest = self.eval_fn(0)
         if self.val_metric_latest > self.highest_val_metric:
             self.highest_val_metric = self.val_metric_latest
@@ -182,6 +187,13 @@ class TrainEval:
                 if self.val_metric_latest > self.highest_val_metric:
                     self.highest_val_metric = self.val_metric_latest
                     self.hvm_epoch = current_epoch
+                    self.nd_model_path = self.best_model_path
+                    self.best_model_path = os.path.join(self.writer.log_dir, "checkpoint",
+                                                        f"best{self.hvm_epoch}_{self.highest_val_metric}.pth")
+
+                    torch.save(self.model.state_dict(), self.best_model_path)
+                    if self.nd_model_path is not None and os.path.exists(self.nd_model_path):
+                        os.remove(self.nd_model_path)
 
             self.scheduler.step()  # 学习率按照scheduler的策略更新
 
@@ -210,8 +222,8 @@ def main():
                   zip(train_images, train_labels)]
 
     # 拆分成train和val
-    train_files = [data_dicts[0]]
-    val_files = random.sample(data_dicts, round(0.01 * len(data_dicts)))
+    train_files = data_dicts
+    val_files = random.sample(data_dicts, round(0.2 * len(data_dicts)))
 
     train_transforms = Compose(
         [
@@ -221,7 +233,7 @@ def main():
                 keys=["image", "label"],
                 label_key="label",
                 spatial_size=(64, 64, 64),
-                pos=1,
+                pos=3,
                 neg=1,
                 num_samples=4,
                 image_key="image",
@@ -323,11 +335,16 @@ def main():
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [150, 300], gamma=0.75)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [100, 400], gamma=1)
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     metric = DiceMetric(include_background=False, reduction="mean")
+    my_loss = DTK_loss(ce_kwargs1={'k': 20}, ce_kwargs2={'k': 10},
+                       soft_dice_kwargs1={'batch_dice': False, 'do_bg': False, 'smooth': 1e-5},
+                       soft_dice_kwargs2={'batch_dice': False, 'do_bg': False, 'smooth': 1e-5},
+                       soft_dice_kwargs3={'batch_dice': False, 'do_bg': False, 'smooth': 1e-5},
+                       aggregate="sum")
 
-    TrainEval(args, model, train_loader, valid_loader, optimizer, scheduler, loss_function, metric, writter,
+    TrainEval(args, model, train_loader, valid_loader, optimizer, scheduler, my_loss, metric, writter,
               device).train()
 
 if __name__ == "__main__":
