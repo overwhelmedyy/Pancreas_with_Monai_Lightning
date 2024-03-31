@@ -135,23 +135,18 @@ class SwinTransformer(nn.Module):
             elif i_layer == 3:
                 self.layers4.append(layer)
             if self.use_v2:
-                layerc = UnetrBasicBlock(
-                    spatial_dims=3,
-                    in_channels=embed_dim * 2 ** i_layer,
-                    out_channels=embed_dim * 2 ** i_layer,
-                    kernel_size=3,
-                    stride=1,
-                    norm_name="instance",
-                    res_block=True,
-                )
+                layerc1 = ux_block(dim=72)
+                layerc2 = ux_block(dim=144)
+                layerc3 = ux_block(dim=288)
+                layerc4 = ux_block(dim=576)
                 if i_layer == 0:
-                    self.layers1c.append(layerc)
+                    self.layers1c.append(layerc1)
                 elif i_layer == 1:
-                    self.layers2c.append(layerc)
+                    self.layers2c.append(layerc2)
                 elif i_layer == 2:
-                    self.layers3c.append(layerc)
+                    self.layers3c.append(layerc3)
                 elif i_layer == 3:
-                    self.layers4c.append(layerc)
+                    self.layers4c.append(layerc4)
 
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
 
@@ -177,9 +172,58 @@ class SwinTransformer(nn.Module):
         x4_out = proj_out(x4, normalize)
         return [x0_out, x1_out, x2_out, x3_out, x4_out]
 
+class ux_block(nn.Module):
+    r""" ConvNeXt Block. There are two equivalent implementations:
+    (1) DwConv -> LayerNorm (channels_first) -> 1x1 Conv -> GELU -> 1x1 Conv; all in (N, C, H, W)
+    (2) DwConv -> Permute to (N, H, W, C); LayerNorm (channels_last) -> Linear -> GELU -> Linear; Permute back
+    We use (2) as we find it slightly faster in PyTorch
+
+    Args:
+        dim (int): Number of input channels.
+        drop_path (float): Stochastic depth rate. Default: 0.0
+        layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
+    """
+
+    def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
+        super().__init__()
+        self.dwconv = nn.Conv3d(dim, dim, kernel_size=7, padding=3, groups=dim)
+        self.norm = LayerNorm(dim, eps=1e-6)
+        # self.pwconv1 = nn.Linear(dim, 4 * dim)
+        self.pwconv1 = nn.Conv3d(dim, 4 * dim, kernel_size=1, groups=dim)
+        self.act = nn.GELU()
+        # self.pwconv2 = nn.Linear(4 * dim, dim)
+        self.pwconv2 = nn.Conv3d(4 * dim, dim, kernel_size=1, groups=dim)
+        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones((dim)),
+                                  requires_grad=True) if layer_scale_init_value > 0 else None
+        # self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x):
+        input = x
+        x = self.dwconv(x)
+        x = x.permute(0, 2, 3, 4, 1) # (N, C, H, W, D) -> (N, H, W, D, C)
+        x = self.norm(x)
+        x = x .permute(0, 4, 1, 2, 3)
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.pwconv2(x)
+        x = x.permute(0, 2, 3, 4, 1)
+        if self.gamma is not None:
+            x = self.gamma * x
+
+        x = x.permute(0, 4, 1, 2, 3)
+        x = input + x
+        return x
+
+    def para_num(self):
+        for name, block in self.named_children():
+            params = sum(p.numel() for p in block.parameters())
+            print(f"{name}: {round(params / 1e6, 4)}M")
+        total_params = sum(p.numel() for p in self.parameters())
+        print(f"Total: {round(total_params/ 1e6, 4)}M")
+
 
 # uxnet_3d + UNetpp
-class SwinViT_Upp(nn.Module):
+class SwinViT_uxblock_Upp(nn.Module):
     def __init__(self,
                  in_chans=1,
                  out_channels=2,
@@ -219,7 +263,7 @@ class SwinViT_Upp(nn.Module):
             use_checkpoint=False,
             spatial_dims=spatial_dims,
             downsample=look_up_option(downsample, MERGING_MODE) if isinstance(downsample, str) else downsample,
-            use_v2=False,
+            use_v2=True,
         )
 
         self.normalize = normalize
@@ -374,9 +418,12 @@ class SwinViT_Upp(nn.Module):
         print(f"Total: {round(total_params/ 1e6, 4)}M")
 
 
+
+
+
 if __name__ == "__main__":
-    module1 = SwinViT_Upp()
+    module1 = SwinViT_uxblock_Upp()
     module1.para_num()
-    # x = torch.rand(1, 1, 64, 64, 64)
+    # x = torch.rand(1, 72, 16, 16, 16)
     # y = module1(x)
-    # print(y[0].shape)
+    # print(y.shape)
