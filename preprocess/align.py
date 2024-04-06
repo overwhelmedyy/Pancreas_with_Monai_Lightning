@@ -16,7 +16,7 @@ from monai.transforms import (
     ScaleIntensityRange,
 )
 
-task_name = "Task01_pancreas"
+task_name = "Task82_pancreas"
 network_name = "UNet"
 directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, task_name)
@@ -47,8 +47,8 @@ for _, i in tqdm(enumerate(data_dicts)):
     image = sitk.ReadImage(i["image"])
     label = sitk.ReadImage(i["label"])
 
-    image_array = sitk.GetArrayFromImage(image)[:, 120:370, 150:400]
-    label_array = sitk.GetArrayFromImage(label)[:, 120:370, 150:400]
+    image_array = sitk.GetArrayFromImage(image)[:, 50:450, 50:450]
+    label_array = sitk.GetArrayFromImage(label)[:, 50:450, 50:450]
 
     img_zoomed = ndimage.zoom(image_array, (0.7, 0.7, 0.7), order=3)
     label_zoomed = ndimage.zoom(label_array, (0.7, 0.7, 0.7), order=0)
@@ -68,14 +68,27 @@ for _, i in tqdm(enumerate(data_dicts)):
     label_proc_z = label_proc[start_slice:end_slice + 1, :, :]
 
     img_output = sitk.GetImageFromArray(img_proc)
-    img_output.SetOrigin(origin)
-    img_output.SetSpacing(spacing)
-    img_output.SetDirection(direction)
+    # img_output.SetOrigin(origin)
+    # img_output.SetSpacing(spacing)
+    # img_output.SetDirection(direction)
 
     label_output = sitk.GetImageFromArray(label_proc)
-    label_output.SetOrigin(origin)
-    label_output.SetSpacing(spacing)
-    label_output.SetDirection(direction)
+    # label_output.SetOrigin(origin)
+    # label_output.SetSpacing(spacing)
+    # label_output.SetDirection(direction)
+
+    if img_output.GetDirection != label_output.GetDirection:
+        print(f"{_} Direction is not the same")
+        print(img_output.GetDirection())
+        print(label_output.GetDirection())
+    if img_output.GetSpacing != label_output.GetSpacing:
+        print(f"{_} Spacing is not the same")
+        print(img_output.GetSpacing())
+        print(label_output.GetSpacing())
+    if img_output.GetOrigin != label_output.GetOrigin:
+        print(f"{_} Origin is not the same")
+        print(img_output.GetOrigin())
+        print(label_output.GetOrigin())
 
     sitk.WriteImage(img_output, os.path.join(data_dir, "img_proc",f"img_{_:04d}.nii.gz"))
     sitk.WriteImage(label_output, os.path.join(data_dir, "pancreas_seg_proc",f"pancreas_seg_{_:04d}.nii.gz"))

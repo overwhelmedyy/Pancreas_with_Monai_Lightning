@@ -26,11 +26,13 @@ from openpyxl import load_workbook
 import datetime
 import atexit
 
+from my_network.SwinViT_uxblock_Upp import SwinViT_uxblock_Upp
+
 args = argparse.Namespace(
     task_name="Task01_pancreas",
     network_name="SwinViT_Upp_pytorch",
     criterion_name="DiceMetric",
-    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinViT_Upp_pytorch\0327_1841\checkpoint\best260_0.8577467203140259.pth",
+    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs_nocheat\Task01_pancreas\SwinViT_uxblock_Upp_loss\0404_2342\checkpoint\best130_0.77473.pth",
     epochs=3,  # number of epochs (default : 10)
     batch_size=1,  # batch size (default : 4)
     dry_run=False  # quickly check a single pass
@@ -76,6 +78,7 @@ class TrainEval:
                 images, labels = images.to(self.device), labels.to(self.device)
 
                 logits = self.model(images)
+                logits = logits[4]
                 logits = [self.post_pred(i) for i in decollate_batch(logits)]  # 这里用list加后处理没问题
                 labels = [self.post_label(i) for i in decollate_batch(labels)]  # 可以运行
                 self.metric(logits, labels)
@@ -116,13 +119,10 @@ def main():
     device = torch.device("cuda:0")
 
     # 读数据的名字
-    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "*.nii.gz")))
-    data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
-                  zip(train_images, train_labels)]
-
-
-    val_files = random.sample(data_dicts, round(0.2 * len(data_dicts)))
+    test_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "test", "*.nii.gz")))
+    test_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "test", "*.nii.gz")))
+    test_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
+                  zip(test_images, test_labels)]
 
     val_transforms = Compose(
         [
@@ -143,7 +143,7 @@ def main():
         ]
     )
 
-    valid_dataset = CacheDataset(data=val_files, transform=val_transforms)
+    valid_dataset = CacheDataset(data=test_dicts, transform=val_transforms)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=pad_list_data_collate)
 
@@ -174,7 +174,7 @@ def main():
     #     img_size=(64, 64, 64)
     # )
 
-    model = SwinViT_Upp()
+    model = SwinViT_uxblock_Upp()
 
     ckpt = torch.load(args.load_model_path)
     # lightning训练出的模型

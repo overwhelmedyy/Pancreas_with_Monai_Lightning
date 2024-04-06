@@ -362,7 +362,8 @@ class SwinViT_Upp(nn.Module):
         output_0_4 = self.final_conv_0_4(x_0_4)
         output_0_5 = self.final_conv_0_5(x_0_5)
 
-        output = [output_0_1, output_0_2, output_0_3, output_0_4, output_0_5]
+        # output = [output_0_1, output_0_2, output_0_3, output_0_4, output_0_5]
+        output = output_0_5
 
         return output
 

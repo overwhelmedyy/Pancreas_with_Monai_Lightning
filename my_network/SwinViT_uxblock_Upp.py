@@ -135,10 +135,10 @@ class SwinTransformer(nn.Module):
             elif i_layer == 3:
                 self.layers4.append(layer)
             if self.use_v2:
-                layerc1 = ux_block(dim=72)
-                layerc2 = ux_block(dim=144)
-                layerc3 = ux_block(dim=288)
-                layerc4 = ux_block(dim=576)
+                layerc1 = ux_block(dim=36)
+                layerc2 = ux_block(dim=72)
+                layerc3 = ux_block(dim=144)
+                layerc4 = ux_block(dim=288)
                 if i_layer == 0:
                     self.layers1c.append(layerc1)
                 elif i_layer == 1:
@@ -186,7 +186,7 @@ class ux_block(nn.Module):
 
     def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
         super().__init__()
-        self.dwconv = nn.Conv3d(dim, dim, kernel_size=7, padding=3, groups=dim)
+        self.dwconv = nn.Conv3d(dim, dim, kernel_size=3, padding=1, groups=dim)
         self.norm = LayerNorm(dim, eps=1e-6)
         # self.pwconv1 = nn.Linear(dim, 4 * dim)
         self.pwconv1 = nn.Conv3d(dim, 4 * dim, kernel_size=1, groups=dim)
@@ -249,7 +249,7 @@ class SwinViT_uxblock_Upp(nn.Module):
 
         self.swinViT = SwinTransformer(
             in_chans=in_chans,
-            embed_dim=36,  # 默认值24，一般设成48
+            embed_dim=feat_size[1],  # 默认值24，一般设成48
             window_size=(7, 7, 7),
             patch_size=(2, 2, 2),
             depths=depths,
@@ -407,6 +407,7 @@ class SwinViT_uxblock_Upp(nn.Module):
         output_0_5 = self.final_conv_0_5(x_0_5)
 
         output = [output_0_1, output_0_2, output_0_3, output_0_4, output_0_5]
+        # output = output_0_5
 
         return output
 
@@ -423,7 +424,7 @@ class SwinViT_uxblock_Upp(nn.Module):
 
 if __name__ == "__main__":
     module1 = SwinViT_uxblock_Upp()
-    module1.para_num()
-    # x = torch.rand(1, 72, 16, 16, 16)
-    # y = module1(x)
-    # print(y.shape)
+    # module1.para_num()
+    x = torch.rand(1, 1, 128, 128, 128)
+    y = module1(x)
+    print(y[0].shape)

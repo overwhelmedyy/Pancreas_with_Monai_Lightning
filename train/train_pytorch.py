@@ -3,6 +3,7 @@ import glob
 import os
 import random
 from datetime import datetime
+
 import numpy as np
 import torch
 from torch.hub import tqdm
@@ -10,6 +11,7 @@ from torch.nn import MSELoss
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import Compose
+
 
 from monai.data import pad_list_data_collate, decollate_batch, DataLoader, CacheDataset
 from monai.losses import DiceLoss, DiceCELoss
@@ -21,18 +23,19 @@ from monai.transforms import (
 )
 from my_network.SwinViT_Upp import SwinViT_Upp
 from my_network.SwinViT_Upp_attg import SwinViT_Upp_attg
+from my_network.SwinViT_uxblock_Upp import SwinViT_uxblock_Upp
 
 args = argparse.Namespace(
-    task_name="Task01_pancreas",
-    network_name="SwinViT_Upp_pytorch",
+    task_name="Task82_pancreas",
+    network_name="SwinUNETR",
     countiune_train=True,  # True ot False
-    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinViT_Upp_pytorch\best260_0.8577467203140259.pth",
+    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs_nocheat\Task82_pancreas\SwinUNETR\0405_1859\checkpoint\best15_0.75006.pth",
     no_cuda=False,  # disables CUDA training
     save_model_every_n_epoch=1,  # save model every epochs (default : 1)
     val_every_n_epoch=5,  # validate every epochs (default : 1)
     log_every_n_step=10,  # log every step (default : 1)
     epochs=1000,  # number of epochs (default : 10)
-    lr=2.5e-4,  # base learning rate (default : 0.01)
+    lr=2e-4,  # base learning rate (default : 0.01)
     batch_size=1,  # batch size (default : 4)
     dry_run=False  # quickly check a single pass
 )
@@ -43,6 +46,7 @@ directory = os.environ.get("MONAI_DATA_DIRECTORY")
 data_dir = os.path.join(directory, args.task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
 cuda = torch.device("cuda:0")
+
 
 class TrainEval:
 
@@ -145,7 +149,8 @@ class TrainEval:
                 images, labels = images.to(self.device), labels.to(self.device)
 
                 logits = self.model(images)
-                logits = [self.post_pred(i) for i in decollate_batch(logits[4])]  # 这里用list加后处理没问题
+                # logits = logits[4]
+                logits = [self.post_pred(i) for i in decollate_batch(logits)]  # 这里用list加后处理没问题
                 labels = [self.post_label(i) for i in decollate_batch(labels)]  # 可以运行
                 self.metric(logits, labels)
                 # 这里好像是可以用的，先不改
@@ -187,7 +192,7 @@ class TrainEval:
                     self.hvm_epoch = current_epoch
                     self.nd_model_path = self.best_model_path
                     self.best_model_path = os.path.join(self.writer.log_dir, "checkpoint",
-                                                        f"best{self.hvm_epoch}_{self.highest_val_metric}.pth")
+                                                        f"best{self.hvm_epoch}_{round(self.highest_val_metric, 5)}.pth")
 
                     torch.save(self.model.state_dict(), self.best_model_path)
                     if self.nd_model_path is not None and os.path.exists(self.nd_model_path):
@@ -195,12 +200,13 @@ class TrainEval:
 
             self.scheduler.step()  # 学习率按照scheduler的策略更新
 
+
 def main():
     # writer和checkpoint路径必须要在main()里面声明，我是真的不知道为什么放在里面就没事
     # 放在外面会不断地生成新的文件夹和新的event文件，到底为什么
     # 放在外面是文件作用域，整个文件里的所有调用都直接运行它，所以会生成多个instance，反复创建新文件夹
     # 放在里面是函数作用域，只有调用这个函数时才运行一次，函数没有推出，调用的就一直是同一个instance
-    log_dir = fr"../runs/{args.task_name}/{args.network_name}/{time_stamp}"
+    log_dir = fr"../runs_nocheat/{args.task_name}/{args.network_name}/{time_stamp}"
     writter = SummaryWriter(log_dir)
     ckpt_dir = os.path.join(writter.log_dir, "checkpoint")
     os.makedirs(ckpt_dir, exist_ok=True)
@@ -213,14 +219,16 @@ def main():
     device = torch.device("cuda:0")
 
     # 读数据的名字
-    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "*.nii.gz")))
-    data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
-                  zip(train_images, train_labels)]
+    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "train", "*.nii.gz")))
+    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "train", "*.nii.gz")))
+    val_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "val", "*.nii.gz")))
+    val_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "val", "*.nii.gz")))
 
-    # 拆分成train和val
-    train_files = data_dicts
-    val_files = random.sample(data_dicts, round(0.2 * len(data_dicts)))
+    train_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
+                  zip(train_images, train_labels)]
+    val_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
+                zip(val_images, val_labels)]
+
 
     train_transforms = Compose(
         [
@@ -276,8 +284,8 @@ def main():
         ]
     )
 
-    train_dataset = CacheDataset(data=train_files, transform=train_transforms)
-    valid_dataset = CacheDataset(data=val_files, transform=val_transforms)
+    train_dataset = CacheDataset(data=train_dicts, transform=train_transforms)
+    valid_dataset = CacheDataset(data=val_dicts, transform=val_transforms)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=pad_list_data_collate)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
@@ -303,14 +311,14 @@ def main():
     #     spatial_dims=3,
     # ).to(device)
 
-    # model = SwinUNETR(
-    #     spatial_dims=3,
-    #     in_channels=1,
-    #     out_channels=2,
-    #     img_size=(64, 64, 64)
-    # )
+    model = SwinUNETR(
+        spatial_dims=3,
+        in_channels=1,
+        out_channels=2,
+        img_size=(64, 64, 64)
+    )
 
-    model = SwinViT_Upp()
+    # model = SwinViT_uxblock_Upp()
 
     # 区分是从0开始还是加载先前训练过的模型
     if args.countiune_train:
@@ -332,7 +340,7 @@ def main():
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [100, 400], gamma=1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [200, 400], gamma=1)
     loss_function = DiceLoss(to_onehot_y=True, softmax=True)
     metric = DiceMetric(include_background=False, reduction="mean")
 

@@ -8,10 +8,11 @@ import numpy as np
 import torch
 from torch.hub import tqdm
 from torch.nn import MSELoss
+from torch.nn.modules.loss import _Loss
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import Compose
-
+import math
 from monai.data import pad_list_data_collate, decollate_batch, DataLoader, CacheDataset
 from monai.losses import DiceLoss, DiceCELoss
 from monai.metrics import DiceMetric
@@ -22,18 +23,19 @@ from monai.transforms import (
 )
 from my_network.SwinViT_Upp import SwinViT_Upp
 from my_network.SwinViT_Upp_attg import SwinViT_Upp_attg
+from my_network.SwinViT_uxblock_Upp import SwinViT_uxblock_Upp
 
 args = argparse.Namespace(
-    task_name="Task01_pancreas",
-    network_name="SwinViT_Upp_pytorch",
+    task_name="Task82_pancreas",
+    network_name="SwinUNETR",
     countiune_train=True,  # True ot False
-    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs\Task01_pancreas\SwinViT_Upp_pytorch\best260_0.8577467203140259.pth",
+    load_model_path=r"C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\runs_nocheat\Task82_pancreas\SwinUNETR\0405_2053\checkpoint\best80_0.81939.pth",
     no_cuda=False,  # disables CUDA training
     save_model_every_n_epoch=1,  # save model every epochs (default : 1)
     val_every_n_epoch=5,  # validate every epochs (default : 1)
     log_every_n_step=10,  # log every step (default : 1)
     epochs=1000,  # number of epochs (default : 10)
-    lr=2.5e-4,  # base learning rate (default : 0.01)
+    lr=1.5e-4,  # base learning rate (default : 0.01)
     batch_size=1,  # batch size (default : 4)
     dry_run=False  # quickly check a single pass
 )
@@ -45,9 +47,10 @@ data_dir = os.path.join(directory, args.task_name)
 persistent_cache = os.path.join(data_dir, "persistent_cache")
 cuda = torch.device("cuda:0")
 
-class SLL_Loss():
+class SLL_Loss(_Loss):
 
     def __init__(self):
+        super().__init__()
         self.DCLoss = DiceCELoss(to_onehot_y=True, softmax=True, lambda_ce=0.0, lambda_dice=1.0)
         self.CELoss = DiceCELoss(to_onehot_y=True, softmax=True, lambda_ce=1.0, lambda_dice=0.0)
         self.MSELoss = MSELoss()
@@ -58,6 +61,10 @@ class SLL_Loss():
         # Computes batched the p-norm distance between each pair of the two collections of row vectors
         # 求的是p-norm距离，p=2就是欧式距离
         loss = torch.cdist(x, y, p=2.0).mean()
+
+        if math.isnan(loss):
+            pass
+            pass
 
         return loss
 
@@ -99,8 +106,13 @@ class SLL_Loss():
             # 下面的两个就是prototype
             represent_a = represent_a.contiguous().view(represent_a.size(0), -1)
             # 下面两个prototype是形状都是(2,)，mean(dim=1)求了两个平均值
-            prototype_f = represent_a[:, target_clone == 1].mean(dim=1)  # target=1是前景，foreground
-            prototype_b = represent_a[:, target_clone == 0].mean(dim=1)  # target=0是背景，background
+            if np.any(target_clone == 1):
+                prototype_f = represent_a[:, target_clone == 1].mean(dim=1)  # target=1是前景，foreground
+                prototype_b = represent_a[:, target_clone == 0].mean(dim=1)
+            else:
+                prototype_f = represent_a[:, target_clone == 2].mean(dim=1)  # target=1是前景，foreground
+                prototype_b = represent_a[:, target_clone == 0].mean(dim=1)
+                # target=0是背景，background
 
             # 下面是unreliable pred，=1就是潜在的前景，=0就是潜在的背景
             # foreground_candidate形状是（2，575447）
@@ -128,24 +140,28 @@ class SLL_Loss():
         loss_a = weight * F.cross_entropy(predicta, target, ignore_index=2)  # 把加进去的index=2忽略掉
         loss_b = weight * F.cross_entropy(predictb, target, ignore_index=2)
 
+        if math.isnan(loss_a) or math.isnan(loss_b) or math.isnan(con_loss):
+            pass
+            pass
+
         return loss_a, loss_b, con_loss
 
     def forward(self, output, label):
-        output_soft5 = F.softmax(output[5], dim=1)
-        ce_loss5 = self.CELoss(output[5], label)
-        dice_loss5 = self.DCLoss(output[5], label)
+        output_soft5 = F.softmax(output[4], dim=1)
+        ce_loss5 = self.CELoss(output[4], label)
+        dice_loss5 = self.DCLoss(output[4], label)
 
-        output_soft4 = F.softmax(output[4], dim=1)
-        ce_loss4 = self.CELoss(output[4], label)
-        dice_loss4 = self.DCLoss(output[4], label)
+        output_soft4 = F.softmax(1-output[3], dim=1)
+        ce_loss4 = self.CELoss(1-output[3], label)
+        dice_loss4 = self.DCLoss(1-output[3], label)
 
-        output_soft3 = F.softmax(output[3], dim=1)
-        ce_loss3 = self.CELoss(output[3], label)
-        dice_loss3 = self.DCLoss(output[3], label)
+        output_soft3 = F.softmax(output[2], dim=1)
+        ce_loss3 = self.CELoss(output[2], label)
+        dice_loss3 = self.DCLoss(output[2], label)
 
-        output_soft2 = F.softmax(output[2], dim=1)
-        ce_loss2 = self.CELoss(output[2], label)
-        dice_loss2 = self.DCLoss(output[2], label)
+        output_soft2 = F.softmax(output[1], dim=1)
+        ce_loss2 = self.CELoss(output[1], label)
+        dice_loss2 = self.DCLoss(output[1], label)
 
         ## Cross reliable loss term
 
@@ -183,6 +199,9 @@ class SLL_Loss():
         loss2 = supervised_loss2 + loss_u_2
 
         total_loss = loss5 + loss4 + loss3 + loss2
+        if math.isnan(total_loss):
+            pass
+            pass
         return total_loss
 
 class TrainEval:
@@ -286,7 +305,8 @@ class TrainEval:
                 images, labels = images.to(self.device), labels.to(self.device)
 
                 logits = self.model(images)
-                logits = [self.post_pred(i) for i in decollate_batch(logits[4])]  # 这里用list加后处理没问题
+                logits = logits[4]
+                logits = [self.post_pred(i) for i in decollate_batch(logits)]  # 这里用list加后处理没问题
                 labels = [self.post_label(i) for i in decollate_batch(labels)]  # 可以运行
                 self.metric(logits, labels)
                 # 这里好像是可以用的，先不改
@@ -328,7 +348,7 @@ class TrainEval:
                     self.hvm_epoch = current_epoch
                     self.nd_model_path = self.best_model_path
                     self.best_model_path = os.path.join(self.writer.log_dir, "checkpoint",
-                                                        f"best{self.hvm_epoch}_{self.highest_val_metric}.pth")
+                                                        f"best{self.hvm_epoch}_{round(self.highest_val_metric, 5)}.pth")
 
                     torch.save(self.model.state_dict(), self.best_model_path)
                     if self.nd_model_path is not None and os.path.exists(self.nd_model_path):
@@ -342,7 +362,7 @@ def main():
     # 放在外面会不断地生成新的文件夹和新的event文件，到底为什么
     # 放在外面是文件作用域，整个文件里的所有调用都直接运行它，所以会生成多个instance，反复创建新文件夹
     # 放在里面是函数作用域，只有调用这个函数时才运行一次，函数没有推出，调用的就一直是同一个instance
-    log_dir = fr"../runs/{args.task_name}/{args.network_name}/{time_stamp}"
+    log_dir = fr"../runs_nocheat/{args.task_name}/{args.network_name}/{time_stamp}"
     writter = SummaryWriter(log_dir)
     ckpt_dir = os.path.join(writter.log_dir, "checkpoint")
     os.makedirs(ckpt_dir, exist_ok=True)
@@ -355,14 +375,16 @@ def main():
     device = torch.device("cuda:0")
 
     # 读数据的名字
-    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "*.nii.gz")))
-    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "*.nii.gz")))
-    data_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
-                  zip(train_images, train_labels)]
+    train_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "train", "*.nii.gz")))
+    train_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "train", "*.nii.gz")))
+    val_images = sorted(glob.glob(os.path.join(data_dir, "img_proc", "val", "*.nii.gz")))
+    val_labels = sorted(glob.glob(os.path.join(data_dir, "pancreas_seg_proc", "val", "*.nii.gz")))
 
-    # 拆分成train和val
-    train_files = data_dicts
-    val_files = random.sample(data_dicts, round(0.2 * len(data_dicts)))
+    train_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
+                  zip(train_images, train_labels)]
+    val_dicts = [{"image": image_name, "label": label_name} for image_name, label_name in
+                zip(val_images, val_labels)]
+
 
     train_transforms = Compose(
         [
@@ -418,8 +440,8 @@ def main():
         ]
     )
 
-    train_dataset = CacheDataset(data=train_files, transform=train_transforms)
-    valid_dataset = CacheDataset(data=val_files, transform=val_transforms)
+    train_dataset = CacheDataset(data=train_dicts, transform=train_transforms)
+    valid_dataset = CacheDataset(data=val_dicts, transform=val_transforms)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
                               collate_fn=pad_list_data_collate)
     valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4,
@@ -452,7 +474,7 @@ def main():
     #     img_size=(64, 64, 64)
     # )
 
-    model = SwinViT_Upp()
+    model = SwinViT_uxblock_Upp()
 
     # 区分是从0开始还是加载先前训练过的模型
     if args.countiune_train:

@@ -2,7 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/UXNet_3D" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/loss_func/SegLossOdyssey" vcs="Git" />
   </component>
 </project>

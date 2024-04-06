@@ -16,12 +16,22 @@
 #     # Load the data from the file
 #     label1 = pickle.load(file)
 #
-with open(r'C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\loss_func\pickle_model_output\logit1.pickle', 'rb') as file:
-        logit1 = pickle.load(file)
-logit1_cpu = logit1[0][0][1][:,:,32].cpu()
-logit1_numpy = logit1_cpu.numpy()
-plt.imshow(logit1_numpy)
-plt.show()
+# with open(r'C:\Git\NeuralNetwork\Pancreas_with_Monai_Lightning\loss_func\pickle_model_output\logit1.pickle', 'rb') as file:
+#     # Load the data from the file
+#     logit1 = pickle.load(file)
+#
+#     pass
+# import matplotlib.pyplot as plt
+#
+# # Move the tensor to CPU if it's on GPU
+# logit1_cpu = logit1[0][0][1][:,:,32].cpu()
+#
+# # Convert the tensor to numpy for visualization
+# logit1_numpy = logit1_cpu.numpy()
+#
+# # Use matplotlib to visualize the tensor
+# plt.imshow(logit1_numpy)
+# plt.show()
 #
 # class TopKLoss(CrossentropyND):
 #     """
